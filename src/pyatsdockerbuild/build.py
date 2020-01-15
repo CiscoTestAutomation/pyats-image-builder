@@ -1,6 +1,7 @@
 import os
 import sys
 import ssl
+import git
 import yaml
 import shutil
 import pprint
@@ -11,12 +12,11 @@ import datetime
 import requests
 import argparse
 import collections
+import configparser
 import urllib.parse
 
 from .utils import copy
 from .utils import run_cmd
-from .utils import make_ini
-from .utils import get_git_repo
 
 DEFAULT_PYTHON_VERSION = '3.6.9-slim'
 WORKSPACE = '/workspace'
@@ -80,10 +80,6 @@ def check_schema(yaml_content):
             assert 'url' in val, "repository '%s' is missing a url" % key
             assert isinstance(val['url'], str), \
                     "repository '%s' url is not a string" % key
-            if 'commit_id' in val:
-                # commit_id is provided by snapshot, but checkout is used since
-                # it handles any type of ref.
-                val['checkout'] = val['commit_id']
 
     if 'snapshot' in yaml_content:
         # Extend the given yaml with any python packages or repositories in
@@ -267,25 +263,30 @@ def build(args):
                     ftp.close()
 
         if 'repositories' in yaml_content:
-            # Clone all git repositories and checkout a specific commit or ref
+            # Clone all git repositories and checkout a specific commit
             # if one is given
             logger.info('Cloning git repositories')
             for name, vals in yaml_content['repositories'].items():
-                assert not (workspace_path / name).exists(), \
-                        "%s already exists" % (workspace_path / name)
-                url = vals['url']
-                logger.info('Cloning repo %s' % url)
-                checkout = vals.get('checkout', None)
-                commit_id = get_git_repo(name=name,
-                                         url=url,
-                                         cwd=workspace_path,
-                                         checkout=checkout)
+                logger.info('Cloning repo %s' % vals['url'])
+
+                # Ensure dir does not already exist
+                repo_dir = workspace_path / name
+                assert not repo_dir.exists(), "%s already exists" % repo_dir
+
+                # Clone the repo
+                repo = git.Repo.clone_from(vals['url'], repo_dir)
+
+                commit_id = vals.get('commit_id', None)
                 if commit_id:
-                    vals.setdefault('commit_id', commit_id)
+                    # If given a commit_id, switch to that commit
+                    commit = repo.commit(commit_id)
+                    repo.head.reference = commit
+                    repo.head.reset(index=True, working_tree=True)
                 else:
-                    raise Exception('Could not clone %s' % url)
-                if checkout:
-                    logger.info('Repo checked out to %s' % checkout)
+                    # No commit_id, find the commit_id of head
+                    vals['commit_id'] = repo.head.commit.hexsha
+
+                shutil.rmtree(repo.git_dir)
 
         # Generate python requirements file
         logger.info('Writing Python packages to requirements.txt')
@@ -296,8 +297,12 @@ def build(args):
         # pip config for setting things like pypi server.
         if 'pip-config' in yaml_content:
             logger.info('Writing pip.conf file')
+            confparse = configparser.ConfigParser()
+            confparse.read_dict(yaml_content['pip-config'])
             pip_conf_path = venv_path / 'pip.conf'
-            pip_conf_path.write_text(make_ini(yaml_content['pip-config']))
+            pip_conf_file = pip_conf_path.open('w')
+            confparse.write(pip_conf_file)
+            pip_conf_file.close()
 
         # Proxy args are predefined in docker, and can be set for building the
         # image. Does not affect the image after it is built.
@@ -311,8 +316,6 @@ def build(args):
         copy(docker_files_path / 'docker-entrypoint.sh',
             install_path / 'entrypoint.sh')
 
-
-
         # Also copy the build yaml and snapshot if available so that they are
         # bundled with the image
         logger.info('Copying %s to context' % args.file)
@@ -321,14 +324,8 @@ def build(args):
             logger.info('Copying %s to context' % yaml_content['snapshot'])
             copy(yaml_content['snapshot'], install_path / 'snapshot.yaml')
 
-
-
-
+        # Write new yaml containing processed and retrieved data
         (install_path / 'build.yaml').write_text(yaml.safe_dump(yaml_content))
-
-
-
-
 
         if not args.dry_run:
             # Run build command

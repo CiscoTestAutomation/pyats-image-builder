@@ -13,10 +13,6 @@ source ${VENV_LOC}/bin/activate
 # -------
 cd ${WORKSPACE}
 
-# Execute any pre pyats tasks
-# ---------------------------
-[ -n ${PRECMD} ] && eval ${PRECMD}
-
 # Run job or given command
 # ------------------------
 if [ -z "$@" ]; then
@@ -28,7 +24,3 @@ else
     # Other command passed -> execute
     eval "$@"
 fi
-
-# Execute any post pyats tasks
-# ----------------------------
-[ -n ${POSTCMD} ] && eval ${POSTCMD}

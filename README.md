@@ -46,11 +46,10 @@ repositories: # Mapping of all git repositories to clone
   reponame: # Key is the name of the directory to clone to
     # Url to remote git repo
     url: "ssh://git@address/path/to/repo.git"
-    # Optional commit ID or ref to checkout the repo to after cloning
-    checkout: abcd1234
+    # Optional commit ID to switch to after cloning
+    commit_id: abcd1234
   dirname/repo2name: # Key supports cloning into a subdirectory
     url: "https://address/path/to/repo2.git"
-    checkout: aabbccdd
 snapshot: /path/to/snapshot/file.yaml # pyATS environment snapshot file
 proxy: # Specific proxy arguments used by Docker during image building
   HTTP_PROXY: "http://127.0.0.1:1111"
@@ -119,9 +118,9 @@ pip-config:
   global:
     format: columns
     no-cache-dir: false
-    trusted-host:
-      - "pypi.python.org"
-      - "pyats-pypi.cisco.com"
+    trusted-host: |
+      pypi.python.org
+      pyats-pypi.cisco.com
     index-url: "http://pyats-pypi.cisco.com/simple"
     disable-pip-version-check: 1
   search:
@@ -134,9 +133,8 @@ Produces this pip.conf
 [global]
 format = columns
 no-cache-dir = false
-trusted-host =
-    pypi.python.org
-    pyats-pypi.cisco.com
+trusted-host = pypi.python.org
+        pyats-pypi.cisco.com
 index-url = http://pyats-pypi.cisco.com/simple
 disable-pip-version-check = 1
 
@@ -154,9 +152,9 @@ could download a wheel file from a remote host, and install that file with pip.
 
 ``` yaml
 files:
-  - whls/packagename.whl: "scp://[user@]remotehost/path/to/packagename.whl"
+  - "scp://[user@]remotehost/path/to/packagename.whl"
 packages:
-  - ${WORKSPACE}/whls/packagename.whl
+  - ${WORKSPACE}/packagename.whl
 ```
 
 ---

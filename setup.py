@@ -1,17 +1,6 @@
 #! /usr/bin/env python
 
-'''
-Internal Cisco Distribution Utilities
-
-This package is intended only for developing Cisco PyPI packages that are both
-used internally (distributed with source .py), and externally (compiled into .so
-binary files through Cython).
-
-Do NOT distribute this outside of Cisco internal.
-'''
-
 from setuptools import setup, find_packages
-
 
 # launch setup
 setup(
@@ -24,11 +13,11 @@ setup(
                        'creation and execution of pyATS jobs',
 
     # the project's main homepage.
-    url = 'http://wwwin-pyats.cisco.com/',
+    url = 'https://developer.cisco.com/docs/pyats/',
 
     # author details
     author = 'Cisco Systems Inc.',
-    author_email = 'pyats-support@cisco.com',
+    author_email = 'pyats-support-ext@cisco.com',
 
     # project licensing
     license = 'Cisco Systems, Inc. Cisco Confidential',
@@ -70,7 +59,8 @@ setup(
     # package dependencies
     install_requires =  ['setuptools',
                          'pyyaml',
-                         'requests'],
+                         'requests',
+                         'gitpython'],
 
     # any additional groups of dependencies.
     # install using: $ pip install -e .[dev]
