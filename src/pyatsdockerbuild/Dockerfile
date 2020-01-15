@@ -2,6 +2,9 @@ FROM python:{python_version}
 LABEL support "pyats-support@cisco.com"
 
 ENV TINI_VERSION=0.18.0
+ENV WORKSPACE="{workspace}"
+ENV INSTALL_LOC="{install_loc}"
+ENV VENV_LOC="{venv_loc}"
 {env}
 
 COPY image .

@@ -45,18 +45,7 @@ def check_schema(yaml_content):
 
     if 'env' in yaml_content:
         # env must be a dict
-        assert isinstance(yaml_content['env'], dict)
-    else:
-        yaml_content['env'] = {}
-    yaml_content['env'] = collections.OrderedDict(yaml_content['env'])
-    # env must contain directory location variables
-    yaml_content['env']['WORKSPACE'] = WORKSPACE
-    yaml_content['env']['INSTALL_LOC'] = INSTALL_LOC
-    yaml_content['env']['VENV_LOC'] = VENV_LOC
-    # Move directories to front so that they can be referenced by other envs
-    yaml_content['env'].move_to_end('VENV_LOC', last=False)
-    yaml_content['env'].move_to_end('INSTALL_LOC', last=False)
-    yaml_content['env'].move_to_end('WORKSPACE', last=False)
+        assert isinstance(yaml_content['env'], dict), 'env is not a mapping'
 
     if 'files' in yaml_content:
         # Ensure that files is a list
@@ -187,18 +176,20 @@ def build(args):
         logger.info('Using Python base image: %s' % python_version)
 
         # Format environment variables for Dockerfile
-        logger.info('Formatting image environment variables')
         dockerfile_env = ''
         if 'env' in yaml_content:
+            logger.info('Formatting image environment variables')
             for key, val in yaml_content['env'].items():
-                dockerfile_env += 'ENV %s="%s"\n' % (key, val)
-            # cast env back into a dict so that it can dumped as yaml later
-            yaml_content['env'] = dict(yaml_content['env'])
+                dockerfile_env += 'ENV %s="%s"\n' \
+                                  % (key, val.replace('"','\\"'))
 
         # Write formatted Dockerfile in context
         logger.info('Writing formatted Dockerfile')
         dockerfile = (docker_files_path / 'Dockerfile').read_text()
         dockerfile = dockerfile.format(python_version=python_version,
+                                       workspace=WORKSPACE,
+                                       install_loc=INSTALL_LOC,
+                                       venv_loc=VENV_LOC,
                                        env=dockerfile_env)
         (context_path / 'Dockerfile').write_text(dockerfile)
 

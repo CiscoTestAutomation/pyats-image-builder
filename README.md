@@ -146,6 +146,21 @@ index = http://pyats-pypi.cisco.com
 
 ---
 
+## Packages
+
+The packages list also works with local wheel files, and can use the
+`$WORKSPACE` environment variable to locate them. This example shows how a user
+could download a wheel file from a remote host, and install that file with pip.
+
+``` yaml
+files:
+  - whls/packagename.whl: "scp://[user@]remotehost/path/to/packagename.whl"
+packages:
+  - ${WORKSPACE}/whls/packagename.whl
+```
+
+---
+
 ## Repositories
 
 The user must have the ability to clone the listed git repositories without any
