@@ -1,5 +1,10 @@
 
 
+
+# Variables
+BUILD_DIR     = $(shell pwd)/__build__
+DIST_DIR      = $(BUILD_DIR)/dist
+
 # Development pkg requirements
 DEPENDENCIES  = pytest PyYAML pip-tools requests #gitpython
 
@@ -10,6 +15,7 @@ help:
 	@echo ""
 	@echo " help                 display this help"
 	@echo " install              install package"
+	@echo " package              build package"
 	@echo " clean                clean stuff"
 	@echo " develop              install package in development mode"
 	@echo " undevelop            unset the above development mode"
@@ -19,6 +25,15 @@ install:
 	@echo "--------------------------------------------------------------------"
 	@echo "Installing package"
 	@python setup.py install
+	@echo ""
+	@echo "Done."
+	@echo ""
+
+package:
+	@echo "--------------------------------------------------------------------"
+	@echo "Building package"
+	@mkdir -p $(DIST_DIR)/
+	@python setup.py bdist_wheel --dist-dir=$(DIST_DIR)
 	@echo ""
 	@echo "Done."
 	@echo ""

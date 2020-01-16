@@ -71,9 +71,9 @@ in other variables since it is defined before. For example:
 env:
   PYTHONPATH: ${WORKSPACE}/repo1dir/:${WORKSPACE}/repo2dir/
 repositories:
-  repo1dir:
+  repo1:
     url: "ssh://git@address/path/to/a/repo.git"
-  repo2dir:
+  repo2:
     url: "ssh://git@address/path/to/another/repo.git"
 ```
 
@@ -91,11 +91,10 @@ repositories.
 - pyATS Docker Build does not support any user interaction once building starts,
   so [passwordless ssh authentication](https://www.debian.org/devel/passwordlessssh)
   must be set up in advance in order to download files with scp.
-- Specifying the user in the URI is optional.
 - Requires an absolute path to be parsed correctly.
 - Supports recursively copying entire directories.
-- In the case that the ssh connection requires a port other than 22, the port
-  can be specified in the URI: `scp://user@remotehost:23/path/to/file`.
+- Specifying the user in the URI is optional.
+- Port can be specified in the URI: `scp://user@remotehost:23/path/to/file`.
 
 ### ftp
 
@@ -176,3 +175,12 @@ A snapshot created with `pyats environment snapshot` contains installed python
 packages and git repositories cloned inside the virtual environment. A snapshot
 file can be specified in the build yaml to extend the list of packages and
 repositories already defined.
+
+---
+
+## Proxy
+
+Proxy configuration can be set permanently using environment variables in the
+env mapping, but in the case where a proxy is desired only for the duration of
+building the image, the configuration can be set in the proxy mapping. This
+configuration will not be set in containers run from the built image.

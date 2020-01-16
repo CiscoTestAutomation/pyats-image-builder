@@ -15,12 +15,10 @@ cd ${WORKSPACE}
 
 # Run job or given command
 # ------------------------
-if [ -z "$@" ]; then
+if [ -z "$1" ]; then
     # Nothing passed -> run bash
-    [ -t 0 ] && bash
-elif [ "info" = "$1" ]; then
-    cat ${INSTALL_LOC}/build.yaml
+    bash
 else
     # Other command passed -> execute
-    eval "$@"
+    exec "$@"
 fi

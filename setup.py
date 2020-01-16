@@ -60,7 +60,8 @@ setup(
     install_requires =  ['setuptools',
                          'pyyaml',
                          'requests',
-                         'gitpython'],
+                         'gitpython',
+                         'docker'],
 
     # any additional groups of dependencies.
     # install using: $ pip install -e .[dev]
