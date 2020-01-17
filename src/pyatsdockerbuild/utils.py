@@ -10,14 +10,14 @@ import subprocess
 
 def copy(fro, to):
     # Copy either a single file or an entire directory
-    fro = pathlib.Path(fro)
-    to = pathlib.Path(to)
+    fro = pathlib.Path(fro).expanduser()
+    to = pathlib.Path(to).expanduser()
     if fro.is_file():
         shutil.copy(fro, to)
     elif fro.is_dir():
         shutil.copytree(fro, to)
     else:
-        raise FileNotFoundError('Cannot copy %s' % fro)
+        raise OSError('Cannot copy %s' % fro)
 
 
 def scp(host, from_path, to_path, port=None):

@@ -7,7 +7,7 @@ echo "[Entrypoint] Workspace Directory: ${WORKSPACE}"
 # activate workspace
 # ------------------
 echo "[Entrypoint] Activating Python virtual environment"
-source ${VENV_LOC}/bin/activate
+source ${VENV_DIR}/bin/activate
 
 # set cwd
 # -------

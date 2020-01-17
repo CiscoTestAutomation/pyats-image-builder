@@ -5,10 +5,9 @@ import shutil
 import docker
 import logging
 import pathlib
-import datetime
 import requests
 import argparse
-import collections
+import tempfile
 import configparser
 import urllib.parse
 
@@ -21,8 +20,8 @@ PACKAGE_PATH = os.path.dirname(__file__)
 PROXY_KEYS = ['HTTP_PROXY', 'HTTPS_PROXY', 'FTP_PROXY', 'NO_PROXY']
 DEFAULT_PYTHON_VERSION = '3.6.9-slim'
 WORKSPACE = '/workspace'
-INSTALL_LOC = '/install'
-VENV_LOC = '/venv'
+INSTALL_DIR = '/install'
+VENV_DIR = '/venv'
 
 logger = logging.getLogger(__name__)
 stdout_handle = logging.StreamHandler(stream=sys.stdout)
@@ -38,6 +37,8 @@ class DockerBuilder(object):
         self.workspace_dir = None
         self.install_dir = None
         self.venv_dir = None
+        # Remove context dir when finished?
+        self.remove_context = True
 
 
     def parser_config(self, argv=None):
@@ -46,20 +47,32 @@ class DockerBuilder(object):
                                      description='Create docker images for '
                                                  'running pyATS jobs')
         parser.add_argument('file')
-        parser.add_argument('--keep-context', '-k', action='store_true')
-        parser.add_argument('--dry-run', '-n', action='store_true')
-        parser.add_argument('--verbose', '-v', action='store_true')
+        parser.add_argument('--path', '-p',
+                            help='Specify a path to use as the context while '
+                                 'building.')
+        parser.add_argument('--keep-context', '-k', action='store_true',
+                            help='Prevents the context dir from being deleted '
+                                 'once the image is built')
+        parser.add_argument('--dry-run', '-n', action='store_true',
+                            help='Set up the context but do not build the '
+                                 'image. Use with --keep-context.')
+        parser.add_argument('--verbose', '-v', action='store_true',
+                            help='Prints the output of docker build.')
         return parser.parse_args()
 
 
-    def setup_context(self, path='/tmp'):
-        # Create directory structure for docker context
-        parent_dir = pathlib.Path(path).resolve()
-        now_str = datetime.datetime.utcnow().strftime('%Y%m%d%H%M%S%f')
-        context_name = 'pyATSBuild' + now_str
-        self.context_dir = parent_dir / context_name
+    def setup_context(self, path=None):
+        # Path is given and already exists, do not remove when done
+        if path and pathlib.Path(path).exists():
+            self.remove_context = False
+        # No path given, use a temporary dir and remove at the end unless
+        # specified.
+        if not path:
+            path = tempfile.mkdtemp()
+        self.context_dir = pathlib.Path(path).expanduser().resolve()
         logger.info('Setting up Docker context in %s' % self.context_dir)
-        self.context_dir.mkdir(parents=True)
+        if not self.context_dir.exists():
+            self.context_dir.mkdir(parents=True)
         # The contents of context_dir/image are copied into the root / of
         # the image.
         self.image_dir = self.context_dir / 'image'
@@ -69,9 +82,9 @@ class DockerBuilder(object):
         # absolute in builder host machine.
         self.workspace_dir = self.image_dir / WORKSPACE.lstrip('/')
         self.workspace_dir.mkdir()
-        self.install_dir = self.image_dir / INSTALL_LOC.lstrip('/')
+        self.install_dir = self.image_dir / INSTALL_DIR.lstrip('/')
         self.install_dir.mkdir()
-        self.venv_dir = self.image_dir / VENV_LOC.lstrip('/')
+        self.venv_dir = self.image_dir / VENV_DIR.lstrip('/')
         self.venv_dir.mkdir()
 
 
@@ -167,16 +180,18 @@ class DockerBuilder(object):
             confparse.write(f)
 
 
-    def handle_docker_files(self, python_version, env):
+    def handle_docker_files(self, python_version, env, pre_cmd, post_cmd):
         # Write formatted Dockerfile in context
         logger.info('Writing formatted Dockerfile')
         package_dir = pathlib.Path(PACKAGE_PATH)
         dockerfile = (package_dir / 'Dockerfile').read_text()
         dockerfile = dockerfile.format(python_version=python_version,
                                        workspace=WORKSPACE,
-                                       install_loc=INSTALL_LOC,
-                                       venv_loc=VENV_LOC,
-                                       env=env)
+                                       install_dir=INSTALL_DIR,
+                                       venv_dir=VENV_DIR,
+                                       env=env,
+                                       pre_cmd=pre_cmd,
+                                       post_cmd=post_cmd)
         (self.context_dir / 'Dockerfile').write_text(dockerfile)
 
         # copy entrypoint to the context
@@ -216,11 +231,12 @@ class DockerBuilder(object):
         # Parse args from command line
         args = self.parser_config(argv)
 
+        # Do not delete context at the end if --keep-context is set
+        if args.keep_context:
+            self.remove_context = False
+
         # Set up build
-        path = '/tmp'
-        if args.keep_context or args.dry_run:
-            path = '.'
-        self.setup_context(path)
+        self.setup_context(args.path)
 
         try:
             # Read given yaml file
@@ -247,8 +263,14 @@ class DockerBuilder(object):
                 for key, val in yaml_content['env'].items():
                     env += 'ENV %s="%s"\n' % (key, val.replace('"','\\"'))
 
+            # Docker commands to insert into the Dockerfile. Very risky.
+            pre_cmd = post_cmd = ''
+            if 'cmds' in yaml_content:
+                pre_cmd = str(yaml_content['cmds'].get('pre', ''))
+                post_cmd = str(yaml_content['cmds'].get('post', ''))
+
             # Generate Dockerfile and copy other files into image context
-            self.handle_docker_files(python_version, env)
+            self.handle_docker_files(python_version, env, pre_cmd, post_cmd)
 
             snapshot = {}
             if 'snapshot' in yaml_content:
@@ -282,8 +304,7 @@ class DockerBuilder(object):
                 packages.extend(snapshot['packages'])
             assert all([isinstance(i, str) for i in packages]), \
                     'not every listed package is a string'
-            if packages:
-                self.handle_packages(packages)
+            self.handle_packages(packages)
 
             if 'files' in yaml_content:
                 # Ensure that files is a list
@@ -337,9 +358,8 @@ class DockerBuilder(object):
         except Exception:
             logger.exception('Failure while building docker image:')
 
-        if not (args.keep_context or args.dry_run):
-            if self.context_dir:
-                shutil.rmtree(self.context_dir)
+        if self.remove_context:
+            shutil.rmtree(self.context_dir)
 
 
 def main():

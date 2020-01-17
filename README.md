@@ -6,15 +6,66 @@ images that have all the necessary components to run a pyATS job. A single YAML
 file must be created to define all of these components. Requires a local Docker
 installation to build the image.
 
-To start building the image, run:
+To start building an image, run:
 
 `$ pyats-docker-build build.yaml`
+
+# Image
+
+## Layout
+
+Three main directories are created when building the image:
+- `$WORKSPACE` is where all user specified files and repositories are stored. It
+is also the working directory when running the docker image.
+- `$INSTALL_DIR` is where files related to the building of the image are stored.
+There is a copy of the yaml file used to create an image at
+`$INSTALL_DIR/build.yaml`.
+- `$VENV_DIR` which is where the python virtual env is created.
+
+## Build Process
+
+The image is built in two main stages. First, pyATS Docker Build sets up the
+image context on the host machine, then it triggers a Docker build using this
+context.
+
+### Context Setup
+
+Within the context, pyATS Docker Build creates an image directory, which will
+have all of its contents copied to the root of the image. Inside this image
+directory is a workspace directory, an install directory, and a venv directory
+that will become `$WORKSPACE`, `$INSTALL_DIR`, and `$VENV_DIR`.
+
+All file retrieval and git cloning is done in the workspace directory to make
+use of user permissions not available within the docker image.
+
+The `packages` list is used to generate a `requirements.txt` file inside the
+install directory, to be used later on in the image. Additionally, the
+entrypoint script is also copied to the install directory.
+
+A `pip.conf` file is generated in the venv directory if specified in the yaml
+file. This can be used to specify a different pypi server, as well as many
+other pip options.
+
+### Docker Build
+
+pyATS Docker Build uses a base image of `python:{version}-slim`. The default
+version is `3.6.9` but can be specified by the user.
+
+The entirety of the context image directory is copied to the image root, which
+creates the `$WORKSPACE`, `$INSTALL_DIR`, and `$VENV_DIR` directories.
+
+A Python virtual environment is created in `$VENV_DIR`, and all specified Python
+packages are installed with pip from `$INSTALL_DIR/requirements.txt`. Some
+packages require non-python dependencies (eg. gcc), which are unlikely to be
+included in the image since it is so minimal. Advanced users familiar with
+docker can use the `cmds` section of the yaml to install these dependencies,
+however this will have a negative impact on the final size of the image.
 
 # YAML file
 
 ``` yaml
 tag: "mypyatsimage:latest" # Docker tag for the image once it is built
-python: 3.6.8 # Python version use as base docker image
+python: 3.6.8 # Python version to use as base docker image
 env: # Mapping to set as environment variables in the image
   VAR1: VALUE1
   VAR2: VALUE2
@@ -56,6 +107,11 @@ proxy: # Specific proxy arguments used by Docker during image building
   HTTPS_PROXY: "https://127.0.0.1:1111"
   FTP_PROXY: "ftp://127.0.0.1:1111"
   NO_PROXY: "*.test.example.com,.example2.com"
+cmds: # Additional commands to be inserted into the Dockerfile
+  # WARNING: This can have unintended consequences. Only use if you are
+  # *absolutely* sure about what you are done.
+  pre: "dockercommand" # Inserts a command before pip install
+  post: "dockercommand" # Inserts a command after pip install
 ```
 
 ---
@@ -106,11 +162,10 @@ repositories.
 
 ## Pip Configuration
 
-pyATS Docker Build uses the values from `pip-config` to build a *pip.conf* file
-in *.ini* format. This file is used for things like specifying a different pypi
-server.
+pyATS Docker Build uses the values from `pip-config` to build a `pip.conf` file
+in *.ini* format.
 
-This YAML
+This YAML:
 
 ``` yaml
 pip-config:
@@ -126,7 +181,7 @@ pip-config:
     index: "http://pyats-pypi.cisco.com"
 ```
 
-Produces this pip.conf
+Produces this pip.conf:
 
 ``` ini
 [global]
@@ -145,7 +200,7 @@ index = http://pyats-pypi.cisco.com
 
 ## Packages
 
-The packages list also works with local wheel files, and can use the
+The `packages` list also works with local wheel files, and can use the
 `$WORKSPACE` environment variable to locate them. This example shows how a user
 could download a wheel file from a remote host, and install that file with pip.
 

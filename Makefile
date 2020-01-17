@@ -1,12 +1,10 @@
 
-
-
 # Variables
 BUILD_DIR     = $(shell pwd)/__build__
 DIST_DIR      = $(BUILD_DIR)/dist
 
 # Development pkg requirements
-DEPENDENCIES  = pytest PyYAML pip-tools requests #gitpython
+DEPENDENCIES  = pytest wheel PyYAML pip-tools requests gitpython docker
 
 .PHONY: help install clean develop undevelop
 
