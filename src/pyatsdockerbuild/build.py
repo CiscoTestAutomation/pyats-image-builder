@@ -15,6 +15,7 @@ from .utils import scp
 from .utils import copy
 from .utils import git_clone
 from .utils import ftp_retrieve
+from .schema import validate_builder_schema
 
 PACKAGE_PATH = os.path.dirname(__file__)
 PROXY_KEYS = ['HTTP_PROXY', 'HTTPS_PROXY', 'FTP_PROXY', 'NO_PROXY']
@@ -240,7 +241,12 @@ class DockerBuilder(object):
 
         try:
             # Read given yaml file
+            logger.info('Reading provided yaml')
             yaml_content = yaml.safe_load(pathlib.Path(args.file).read_text())
+
+            # Verify schema
+            logger.info('Verifying schema')
+            validate_builder_schema(yaml_content)
 
             # Copy the build yaml to the image
             logger.info('Copying %s to context' % args.file)
@@ -287,13 +293,6 @@ class DockerBuilder(object):
                 repositories.update(yaml_content['repositories'])
             if 'repositories' in snapshot:
                 repositories.update(snapshot['repositories'])
-            for key, val in repositories.items():
-                assert isinstance(val, dict), \
-                        "repository '%s' is not a mapping" % key
-                assert 'url' in val, \
-                        "repository '%s' is missing a url" % key
-                assert isinstance(val['url'], str), \
-                        "repository '%s' url is not a string" % key
             if repositories:
                 self.handle_repositories(repositories)
 
@@ -302,34 +301,13 @@ class DockerBuilder(object):
                 packages.extend(yaml_content['packages'])
             if 'packages' in snapshot:
                 packages.extend(snapshot['packages'])
-            assert all([isinstance(i, str) for i in packages]), \
-                    'not every listed package is a string'
             self.handle_packages(packages)
 
             if 'files' in yaml_content:
-                # Ensure that files is a list
-                files = yaml_content['files']
-                assert isinstance(files, list), 'files is not a list'
-                for f in files:
-                    # Ensure every file is a list of dict of size 1
-                    assert isinstance(f, (str, dict)), \
-                            "file '%s' is neither a string nor a mapping" % f
-                    if isinstance(f, dict):
-                        assert len(f) == 1, "file '%s' has more than one value" % f
-                        for k, v in f.items():
-                            # Ensure no file destination starts with / since that
-                            # will copy to root of host.
-                            assert not str(k).startswith('/'), \
-                                    "file '%s' cannot have an absolute " \
-                                    "destination path" % f
-                self.handle_files(files)
+                self.handle_files(yaml_content['files'])
 
             if 'pip-config' in yaml_content:
-                # pip options can only be simple key-value pairs of strings
-                pip_config = yaml_content['pip-config']
-                assert isinstance(pip_config, dict), \
-                        'pip-config is not a mapping'
-                self.handle_pip_config(pip_config)
+                self.handle_pip_config(yaml_content['pip-config'])
 
             # Use docker build args to set proxy if there is one
             proxy = {}
@@ -337,18 +315,14 @@ class DockerBuilder(object):
                 logger.info('Setting proxy args for docker')
                 # Proxy values must only belong to specifically defined keys
                 proxy = yaml_content['proxy']
-                assert isinstance(proxy, dict), "proxy is not a mapping"
-                for key, val in proxy.items():
-                    assert key.upper() in PROXY_KEYS, \
-                            "proxy key '%s' not one of %s" % (key, PROXY_KEYS)
 
             # Tag for docker image
             tag = None
             if 'tag' in yaml_content:
                 tag = yaml_content['tag']
 
+            # Start docker build
             if not args.dry_run:
-                # Start docker build
                 logger.info('Building image')
                 self.docker_build(tag=tag,
                                   build_args=proxy,

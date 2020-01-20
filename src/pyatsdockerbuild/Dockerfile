@@ -6,8 +6,6 @@ ENV WORKSPACE="{workspace}"
 ENV INSTALL_DIR="{install_dir}"
 ENV VENV_DIR="{venv_dir}"
 
-{env}
-
 RUN apt-get update \
  && apt-get install -y --no-install-recommends iputils-ping telnet openssh-client curl build-essential \
  && curl -fsSL https://github.com/krallin/tini/releases/download/v${{TINI_VERSION}}/tini-static-amd64 -o /bin/tini \
@@ -20,6 +18,8 @@ RUN apt-get update \
  && apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false \
  && apt-get clean \
  && rm -rf /var/lib/apt/lists/*
+
+{env}
 
 COPY image .
 

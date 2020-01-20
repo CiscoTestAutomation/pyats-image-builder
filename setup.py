@@ -61,7 +61,8 @@ setup(
                          'pyyaml',
                          'requests',
                          'gitpython',
-                         'docker'],
+                         'docker',
+                         'jsonschema'],
 
     # any additional groups of dependencies.
     # install using: $ pip install -e .[dev]

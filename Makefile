@@ -5,6 +5,7 @@ DIST_DIR      = $(BUILD_DIR)/dist
 
 # Development pkg requirements
 DEPENDENCIES  = pytest wheel PyYAML pip-tools requests gitpython docker
+DEPENDENCIES += jsonschema
 
 .PHONY: help install clean develop undevelop
 
