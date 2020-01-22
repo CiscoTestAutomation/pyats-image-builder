@@ -1,14 +1,17 @@
 
-# pyATS Docker Build
+# pyATS Image Builder
 
-pyATS Docker Build is a stand-alone executible package for generating Docker
+pyATS Image Builder is a stand-alone executible package for generating Docker
 images that have all the necessary components to run a pyATS job. A single YAML
 file must be created to define all of these components. Requires a local Docker
 installation to build the image.
 
 To start building an image, run:
-
-`$ pyats-docker-build build.yaml`
+```bash
+$ pyats-image-build build.yaml
+```
+Where `build.yaml` is a YAML file made by the user to define the image to be
+built.
 
 # Image
 
@@ -17,49 +20,51 @@ To start building an image, run:
 Three main directories are created when building the image:
 - `$WORKSPACE` is where all user specified files and repositories are stored. It
 is also the working directory when running the docker image.
-- `$INSTALL_DIR` is where files related to the building of the image are stored.
-There is a copy of the yaml file used to create an image at
-`$INSTALL_DIR/build.yaml`.
-- `$VENV_DIR` which is where the python virtual env is created.
+- `$WORKSPACE/installation` is where files related to the building of the image
+are stored. There is a copy of the yaml file used to create an image named
+`build.yaml`, and the entrypoint script for starting a Docker container.
+- `$VIRTUAL_ENV` which is where the python virtual env is created.
 
 ## Build Process
 
-The image is built in two main stages. First, pyATS Docker Build sets up the
+The image is built in two main stages. First, pyATS Image Builder sets up the
 image context on the host machine, then it triggers a Docker build using this
 context.
 
 ### Context Setup
 
-Within the context, pyATS Docker Build creates an image directory, which will
+Within the context, pyATS Image Builder creates an image directory, which will
 have all of its contents copied to the root of the image. Inside this image
-directory is a workspace directory, an install directory, and a venv directory
-that will become `$WORKSPACE`, `$INSTALL_DIR`, and `$VENV_DIR`.
+directory is a workspace directory and a virtual env directory that will become
+`$WORKSPACE` and `$VIRTUAL_ENV`.
 
 All file retrieval and git cloning is done in the workspace directory to make
 use of user permissions not available within the docker image.
 
 The `packages` list is used to generate a `requirements.txt` file inside the
-install directory, to be used later on in the image. Additionally, the
-entrypoint script is also copied to the install directory.
+installation directory, which is in the workspace directory. This file is used
+later on in the Docker build stage. Additionally, the entrypoint script is also
+copied to the installation directory.
 
-A `pip.conf` file is generated in the venv directory if specified in the yaml
-file. This can be used to specify a different pypi server, as well as many
+A `pip.conf` file is generated in the virtual env directory if specified in the
+yaml file. This can be used to specify a different pypi server, as well as many
 other pip options.
 
 ### Docker Build
 
-pyATS Docker Build uses a base image of `python:{version}-slim`. The default
+pyATS Image Builder uses a base image of `python:{version}-slim`. The default
 version is `3.6.9` but can be specified by the user.
 
 The entirety of the context image directory is copied to the image root, which
-creates the `$WORKSPACE`, `$INSTALL_DIR`, and `$VENV_DIR` directories.
+creates the `$WORKSPACE` and `$VIRTUAL_ENV` directories.
 
-A Python virtual environment is created in `$VENV_DIR`, and all specified Python
-packages are installed with pip from `$INSTALL_DIR/requirements.txt`. Some
-packages require non-python dependencies (eg. gcc), which are unlikely to be
-included in the image since it is so minimal. Advanced users familiar with
-docker can use the `cmds` section of the yaml to install these dependencies,
-however this will have a negative impact on the final size of the image.
+A Python virtual environment is created in `$VIRTUAL_ENV`, and all specified
+Python packages are installed with pip from
+`$WORKSPACE/installation/requirements.txt`. Some packages require non-python
+dependencies (eg. gcc), which are unlikely to be included in the image since it
+is so minimal. Advanced users familiar with docker can use the `cmds` section of
+the yaml to install these dependencies, however this will have a negative impact
+on the final size of the image.
 
 # YAML file
 
@@ -144,8 +149,9 @@ repositories.
 
 ### scp
 
-- pyATS Docker Build does not support any user interaction once building starts,
-  so [passwordless ssh authentication](https://www.debian.org/devel/passwordlessssh)
+- pyATS Image Builder does not support any user interaction once building
+  starts, so
+  [passwordless ssh authentication](https://www.debian.org/devel/passwordlessssh)
   must be set up in advance in order to download files with scp.
 - Requires an absolute path to be parsed correctly.
 - Supports recursively copying entire directories.
@@ -155,14 +161,14 @@ repositories.
 ### ftp
 
 - Only single files can be retrieved with ftp.
-- pyATS Docker Build uses the anonymous login for ftp, so the file must be
+- pyATS Image Builder uses the anonymous login for ftp, so the file must be
   accesible to anonymous users.
 
 ---
 
 ## Pip Configuration
 
-pyATS Docker Build uses the values from `pip-config` to build a `pip.conf` file
+pyATS Image Builder uses the values from `pip-config` to build a `pip.conf` file
 in *.ini* format.
 
 This YAML:
@@ -181,7 +187,7 @@ pip-config:
     index: "http://pyats-pypi.cisco.com"
 ```
 
-Produces this pip.conf:
+Produces this `pip.conf`:
 
 ``` ini
 [global]
@@ -239,3 +245,73 @@ Proxy configuration can be set permanently using environment variables in the
 env mapping, but in the case where a proxy is desired only for the duration of
 building the image, the configuration can be set in the proxy mapping. This
 configuration will not be set in containers run from the built image.
+
+# Running the image
+
+To run the newly generated image, do:
+```bash
+$ docker run [--rm] [-it] [-v LOCAL:CONTAINER] IMAGE [COMMAND]
+```
+Where `[IMAGE]` is the image tag or ID. `--rm` is an optional flag to remove the
+container once finished. `-it` are optional flags that allow the container to
+run interactively. `-v LOCAL:CONTAINER` is the optional argument that mounts a
+file or directory `LOCAL` to the specified location `CONTAINER` in the
+container. Both paths must be absolute. When no command is given, the container
+will default to starting a bash session.
+
+To run a pyATS job, the command would look like:
+```bash
+$ docker run --rm myimg:latest pyats run job myrepo/myjob.py
+```
+In this case, the job file in question is `$WORKSPACE/myrepo/myjob.py`. The
+starting working directory of the image is `$WORKSPACE` which is why it does not
+need to be specified in the command.
+
+It may be beneficial to set an environment variable with the location of a job
+file or any other information by defining it in the YAML file. These variables
+cannot be used directly on the command line since the host will attempt to
+interpolate variables before executing docker. There are two methods to use
+environment variables in the docker container.
+
+---
+
+## Instructions File
+
+Environment variables can be specified inside a small bash script without any
+issues. This script can then be mounted and executed inside the container. This
+has the additional benefit of allowing multiple commands to be passed without
+running the container interactively
+
+Create a small bash script that has all the commands and variables.
+
+`run.sh`:
+```bash
+echo "\$JOBFILE is $JOBFILE"
+echo "\TESTBEDFILE is $TESTBEDFILE"
+pyats run job $JOBFILE --testbed-file $TESTBEDFILE
+```
+Then mount and run this file when running the container.
+```bash
+$ docker run --rm -v $(pwd)/run.sh:/mnt/run.sh myimg:latest bash /mnt/run.sh
+```
+This mounts the local file `run.sh` to the location `/mnt/run.sh` in the
+container, and executes this file with bash.
+
+A user created python file could also be mounted and run in the exact same
+manner.
+```bash
+$ docker run --rm -v $(pwd)/run.py:/mnt/run.py myimg:latest python /mnt/run.py
+```
+
+---
+
+## Bash Interpolation
+
+Variables can be preserved when passed from the command line.
+```bash
+$ docker run --rm myimg:latest bash -c 'pyats run job $JOBFILE'
+```
+Bash does not interpolate anything within single quotes, so the entire command
+is preserved as a string in this way when passed to docker. Then the command
+`bash -c` will interpolate and execute the string inside the docker container,
+which will resolve variables correctly.

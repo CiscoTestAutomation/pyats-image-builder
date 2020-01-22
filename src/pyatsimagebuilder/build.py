@@ -21,36 +21,43 @@ PACKAGE_PATH = os.path.dirname(__file__)
 PROXY_KEYS = ['HTTP_PROXY', 'HTTPS_PROXY', 'FTP_PROXY', 'NO_PROXY']
 DEFAULT_PYTHON_VERSION = '3.6.9-slim'
 WORKSPACE = '/workspace'
-INSTALL_DIR = '/install'
-VENV_DIR = '/venv'
+INSTALL_DIR = '/workspace/installation'
+VIRTUAL_ENV = '/venv'
 
 logger = logging.getLogger(__name__)
 stdout_handle = logging.StreamHandler(stream=sys.stdout)
 logger.addHandler(stdout_handle)
 logger.setLevel(logging.INFO)
+logger.propagate = False
 
 
-class DockerBuilder(object):
+class ImageBuilder(object):
     def __init__(self):
         # Paths to important context directories
         self.context_dir = None
         self.image_dir = None
         self.workspace_dir = None
         self.install_dir = None
-        self.venv_dir = None
+        self.virtual_env = None
         # Remove context dir when finished?
         self.remove_context = True
 
 
     def parser_config(self, argv=None):
         # Parse arguments for building a docker image
-        parser = argparse.ArgumentParser(prog='pyats-docker-build',
-                                     description='Create docker images for '
-                                                 'running pyATS jobs')
+        parser = argparse.ArgumentParser(prog='pyats-image-build',
+                                         description='Create docker images for '
+                                                     'running pyATS jobs')
         parser.add_argument('file')
+        parser.add_argument('--tag', '-t',
+                            help='Tag for docker image. Overrides any tag '
+                                 'defined in the yaml.')
         parser.add_argument('--path', '-p',
                             help='Specify a path to use as the context while '
                                  'building.')
+        parser.add_argument('--no-cache', '-c', action='store_true',
+                            help='Do not use the cache when building the '
+                                 'image.')
         parser.add_argument('--keep-context', '-k', action='store_true',
                             help='Prevents the context dir from being deleted '
                                  'once the image is built')
@@ -59,7 +66,7 @@ class DockerBuilder(object):
                                  'image. Use with --keep-context.')
         parser.add_argument('--verbose', '-v', action='store_true',
                             help='Prints the output of docker build.')
-        return parser.parse_args()
+        return parser.parse_args(argv)
 
 
     def setup_context(self, path=None):
@@ -85,8 +92,8 @@ class DockerBuilder(object):
         self.workspace_dir.mkdir()
         self.install_dir = self.image_dir / INSTALL_DIR.lstrip('/')
         self.install_dir.mkdir()
-        self.venv_dir = self.image_dir / VENV_DIR.lstrip('/')
-        self.venv_dir.mkdir()
+        self.virtual_env = self.image_dir / VIRTUAL_ENV.lstrip('/')
+        self.virtual_env.mkdir()
 
 
     def handle_files(self, files):
@@ -176,7 +183,7 @@ class DockerBuilder(object):
         logger.info('Writing pip.conf file')
         confparse = configparser.ConfigParser()
         confparse.read_dict(config)
-        pip_conf_file = self.venv_dir / 'pip.conf'
+        pip_conf_file = self.virtual_env / 'pip.conf'
         with pip_conf_file.open('w') as f:
             confparse.write(f)
 
@@ -189,7 +196,7 @@ class DockerBuilder(object):
         dockerfile = dockerfile.format(python_version=python_version,
                                        workspace=WORKSPACE,
                                        install_dir=INSTALL_DIR,
-                                       venv_dir=VENV_DIR,
+                                       virtual_env=VIRTUAL_ENV,
                                        env=env,
                                        pre_cmd=pre_cmd,
                                        post_cmd=post_cmd)
@@ -316,10 +323,8 @@ class DockerBuilder(object):
                 # Proxy values must only belong to specifically defined keys
                 proxy = yaml_content['proxy']
 
-            # Tag for docker image
-            tag = None
-            if 'tag' in yaml_content:
-                tag = yaml_content['tag']
+            # Tag for docker image   CLI > yaml > None
+            tag = args.tag or yaml_content.get('tag', None)
 
             # Start docker build
             if not args.dry_run:
@@ -337,7 +342,7 @@ class DockerBuilder(object):
 
 
 def main():
-    return DockerBuilder().run()
+    return ImageBuilder().run()
 
 if __name__ == '__main__':
     main()

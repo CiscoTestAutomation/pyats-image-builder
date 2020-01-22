@@ -4,13 +4,13 @@ from setuptools import setup, find_packages
 
 # launch setup
 setup(
-    name = 'pyatsdockerbuild',
+    name = 'pyats-image-builder',
     version = '20.1',
 
     # descriptions
-    description = 'pyATS Docker image creation and execution',
+    description = 'pyATS Docker image creation',
     long_description = 'Cisco package intended to simplify and standardize the '
-                       'creation and execution of pyATS jobs',
+                       'creation of Python virtual environments for pyATS jobs',
 
     # the project's main homepage.
     url = 'https://developer.cisco.com/docs/pyats/',
@@ -53,7 +53,9 @@ setup(
 
     # console entry point
     entry_points = {
-        'console_scripts': ['pyats-docker-build = pyatsdockerbuild.build:main']
+        'console_scripts': ['pyats-image-build = pyatsimagebuilder.build:main'],
+        'pyats.cli.commands': [
+                'image = pyatsimagebuilder.commands:ImageCommand'],
     },
 
     # package dependencies
