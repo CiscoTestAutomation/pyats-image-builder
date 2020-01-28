@@ -13,6 +13,31 @@ $ pyats-image-build build.yaml
 Where `build.yaml` is a YAML file made by the user to define the image to be
 built.
 
+## CLI Options
+
+```
+usage: pyats-image-build [-h] [--tag TAG] [--path PATH] [--no-cache]
+                         [--keep-context] [--dry-run] [--verbose]
+                         file
+
+Create docker images for running pyATS jobs
+
+positional arguments:
+  file                  YAML file defining the image to be built.
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --tag TAG, -t TAG     Tag for docker image. Overrides any tag defined in the
+                        yaml.
+  --path PATH, -p PATH  Specify a path to use as the context while building.
+  --no-cache, -c        Do not use the cache when building the image.
+  --keep-context, -k    Prevents the context dir from being deleted once the
+                        image is built
+  --dry-run, -n         Set up the context but do not build the image. Use
+                        with --keep-context.
+  --verbose, -v         Prints the output of docker build.
+```
+
 # Image
 
 ## Layout

@@ -48,7 +48,8 @@ class ImageBuilder(object):
         parser = argparse.ArgumentParser(prog='pyats-image-build',
                                          description='Create docker images for '
                                                      'running pyATS jobs')
-        parser.add_argument('file')
+        parser.add_argument('file',
+                            help='YAML file defining the image to be built.')
         parser.add_argument('--tag', '-t',
                             help='Tag for docker image. Overrides any tag '
                                  'defined in the yaml.')
@@ -114,7 +115,9 @@ class ImageBuilder(object):
             # Use original file name if a new one is not provided
             if not name:
                 name = os.path.basename(url_parts.path)
-            to_path = self.workspace_dir / name
+            to_path = (self.workspace_dir / name).resolve()
+            # Ensure file is being copied to workspace
+            to_path.relative_to(self.workspace_dir)
             # Prevent overwriting existing files
             assert not to_path.exists(), "%s already exists" % to_path
             # Make sure parent dir exists
@@ -163,8 +166,9 @@ class ImageBuilder(object):
         logger.info('Cloning git repositories')
         for name, vals in repositories.items():
             logger.info('Cloning repo %s' % vals['url'])
-            # Ensure dir does not already exist
-            repo_dir = self.workspace_dir / name
+            # Ensure dir is within workspace, and does not already exist
+            repo_dir = (self.workspace_dir / name).resolve
+            repo_dir.relative_to(self.workspace_dir)
             assert not repo_dir.exists(), "%s already exists" % repo_dir
             # Clone and checkout the repo
             git_clone(vals['url'], repo_dir, vals.get('commit_id', None), True)
@@ -208,7 +212,11 @@ class ImageBuilder(object):
              self.install_dir / 'entrypoint.sh')
 
 
-    def docker_build(self, tag=None, build_args={}, verbose=False):
+    def docker_build(self,
+                     tag=None,
+                     build_args={},
+                     verbose=False,
+                     no_cache=False):
         # Get docker client api
         api = docker.from_env().api
         build_error = None
@@ -219,7 +227,8 @@ class ImageBuilder(object):
                               rm=True,
                               forcerm=True,
                               buildargs=build_args,
-                              decode=True):
+                              decode=True,
+                              nocache=no_cache):
 
             # If verbose, print the build output
             if verbose:
@@ -331,7 +340,8 @@ class ImageBuilder(object):
                 logger.info('Building image')
                 self.docker_build(tag=tag,
                                   build_args=proxy,
-                                  verbose=args.verbose)
+                                  verbose=args.verbose,
+                                  no_cache=args.no_cache)
                 logger.info('Built image successfully')
 
         except Exception:
