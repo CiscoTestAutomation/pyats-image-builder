@@ -6,14 +6,27 @@ images that have all the necessary components to run a pyATS job. A single YAML
 file must be created to define all of these components. Requires a local Docker
 installation to build the image.
 
-To start building an image, run:
-```bash
-$ pyats-image-build build.yaml
-```
-Where `build.yaml` is a YAML file made by the user to define the image to be
-built.
+## General Information
 
-## CLI Options
+- Website: https://developer.cisco.com/pyats/
+- Documentation: https://developer.cisco.com/site/pyats/docs/
+
+
+## Installation
+
+To install this package, simply:
+
+```bash
+
+bash$ pip install pyats-image-builder
+```
+
+## Usage
+
+This package does not require [pyATS](https://developer.cisco.com/pyats/) to be 
+installed in your environment. It features its own command line interface, 
+`pyats-image-build`. However, if you have `pyats` installed in this environment,
+this functionality is also accessible as `pyats image` command.
 
 ```
 usage: pyats-image-build [-h] [--tag TAG] [--path PATH] [--no-cache]
@@ -37,6 +50,7 @@ optional arguments:
                         with --keep-context.
   --verbose, -v         Prints the output of docker build.
 ```
+
 
 # Image
 

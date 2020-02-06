@@ -24,15 +24,24 @@ setup(
 
     # see https://pypi.python.org/pypi?%3Aaction=list_classifiers
     classifiers = [
-        'Development Status :: 4 - Beta',
+        'Development Status :: 5 - Production/Stable',
         'Environment :: Console',
         'Intended Audience :: Developers',
-        'Intended Audience :: Telecommunications Industry'
-        'License :: Other/Proprietary License',
+        'Intended Audience :: Telecommunications Industry',
+        'Intended Audience :: Information Technology',
+        'Intended Audience :: System Administrators',
+        'License :: OSI Approved :: Apache Software License',
+        'Operating System :: MacOS',
         'Operating System :: POSIX :: Linux',
-        'Operating System :: OS Independent',
+        'Programming Language :: Python :: 3.7',
+        'Programming Language :: Python :: 3.6',
+        'Programming Language :: Python :: 3.5',
         'Programming Language :: Python :: 3 :: Only',
+        'Programming Language :: Python :: Implementation :: CPython',
         'Topic :: Software Development :: Testing',
+        'Topic :: Software Development :: Build Tools',
+        'Topic :: Software Development :: Libraries',
+        'Topic :: Software Development :: Libraries :: Python Modules',
     ],
 
     # project keywords
