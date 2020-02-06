@@ -1,0 +1,46 @@
+# Python compiled files
+*.pyc
+*.pyo
+__pycache__/
+
+# Cython files
+*.c
+*.so
+
+# Developer files
+.project
+.pydevproject
+.vscode/
+
+# Swap files (VI)
+*.sw*
+
+# backup files
+*.bak
+
+# rope project files
+*.ropeproject
+# temp files
+*~
+
+# mac files
+.DS_Store
+
+# local doc
+doc/
+
+#build folder
+__build__/
+*.egg-info
+dist/
+build/
+
+# coverage data
+htmlcov/
+.coverage*
+
+# Files resulting from a git meld merge
+*.orig
+
+# vscode
+.vscode
