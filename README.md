@@ -1,7 +1,7 @@
 
 # pyATS Image Builder
 
-pyATS Image Builder is a stand-alone executible package for generating Docker
+pyATS Image Builder is a stand-alone executable package for generating Docker
 images that have all the necessary components to run a pyATS job. A single YAML
 file must be created to define all of these components. Requires a local Docker
 installation to build the image.
@@ -23,8 +23,8 @@ bash$ pip install pyats-image-builder
 
 ## Usage
 
-This package does not require [pyATS](https://developer.cisco.com/pyats/) to be 
-installed in your environment. It features its own command line interface, 
+This package does not require [pyATS](https://developer.cisco.com/pyats/) to be
+installed in your environment. It features its own command line interface,
 `pyats-image-build`. However, if you have `pyats` installed in this environment,
 this functionality is also accessible as `pyats image` command.
 

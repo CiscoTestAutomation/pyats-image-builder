@@ -167,7 +167,7 @@ class ImageBuilder(object):
         for name, vals in repositories.items():
             logger.info('Cloning repo %s' % vals['url'])
             # Ensure dir is within workspace, and does not already exist
-            repo_dir = (self.workspace_dir / name).resolve
+            repo_dir = (self.workspace_dir / name).resolve()
             repo_dir.relative_to(self.workspace_dir)
             assert not repo_dir.exists(), "%s already exists" % repo_dir
             # Clone and checkout the repo
