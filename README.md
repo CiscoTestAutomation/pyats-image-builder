@@ -33,14 +33,14 @@ usage: pyats-image-build [-h] [--tag TAG] [--path PATH] [--no-cache]
                          [--keep-context] [--dry-run] [--verbose]
                          file
 
-Create docker images for running pyATS jobs
+Create Docker images for running pyATS jobs
 
 positional arguments:
   file                  YAML file defining the image to be built.
 
 optional arguments:
   -h, --help            show this help message and exit
-  --tag TAG, -t TAG     Tag for docker image. Overrides any tag defined in the
+  --tag TAG, -t TAG     Tag for Docker image. Overrides any tag defined in the
                         yaml.
   --path PATH, -p PATH  Specify a path to use as the context while building.
   --no-cache, -c        Do not use the cache when building the image.
@@ -58,7 +58,7 @@ optional arguments:
 
 Three main directories are created when building the image:
 - `$WORKSPACE` is where all user specified files and repositories are stored. It
-is also the working directory when running the docker image.
+is also the working directory when running the Docker image.
 - `$WORKSPACE/installation` is where files related to the building of the image
 are stored. There is a copy of the yaml file used to create an image named
 `build.yaml`, and the entrypoint script for starting a Docker container.
@@ -101,7 +101,7 @@ A Python virtual environment is created in `$VIRTUAL_ENV`, and all specified
 Python packages are installed with pip from
 `$WORKSPACE/installation/requirements.txt`. Some packages require non-python
 dependencies (eg. gcc), which are unlikely to be included in the image since it
-is so minimal. Advanced users familiar with docker can use the `cmds` section of
+is so minimal. Advanced users familiar with Docker can use the `cmds` section of
 the yaml to install these dependencies, however this will have a negative impact
 on the final size of the image.
 
@@ -109,7 +109,7 @@ on the final size of the image.
 
 ``` yaml
 tag: "mypyatsimage:latest" # Docker tag for the image once it is built
-python: 3.6.8 # Python version to use as base docker image
+python: 3.6.8 # Python version to use as base Docker image
 env: # Mapping to set as environment variables in the image
   VAR1: VALUE1
   VAR2: VALUE2
@@ -129,8 +129,8 @@ files: # List of files/directories to copy to the image
     # Also supports ftp
   - "ftp://remotehost:2121/path/to/file7"
 packages: # List of python packages to install
-  - pyats[full]>=20.1,<20.2 # Supports package version restrictions
-  - otherpackage1==1.0
+  - pyats[full]
+  - otherpackage1==1.0 # Supports package version restrictions
   - otherpackage2==2.0
 pip-config: # Values to be converted into a pip.conf file
   # [global]
@@ -309,8 +309,8 @@ need to be specified in the command.
 It may be beneficial to set an environment variable with the location of a job
 file or any other information by defining it in the YAML file. These variables
 cannot be used directly on the command line since the host will attempt to
-interpolate variables before executing docker. There are two methods to use
-environment variables in the docker container.
+interpolate variables before executing Docker. There are two methods to use
+environment variables in the Docker container.
 
 ---
 
@@ -351,6 +351,95 @@ Variables can be preserved when passed from the command line.
 $ docker run --rm myimg:latest bash -c 'pyats run job $JOBFILE'
 ```
 Bash does not interpolate anything within single quotes, so the entire command
-is preserved as a string in this way when passed to docker. Then the command
-`bash -c` will interpolate and execute the string inside the docker container,
+is preserved as a string in this way when passed to Docker. Then the command
+`bash -c` will interpolate and execute the string inside the Docker container,
 which will resolve variables correctly.
+
+
+# API
+
+pyATS Image Builder can also be used directly from another Python script using
+the `build()` function and `Image` class.
+
+## `build()`
+
+```python
+build(config = {}, path = None, tag = None, keep_context = False,
+      verbose = False, stream = None, no_cache = False, dry_run = False)
+```
+
+| Argument | Description |
+| -------- | ----------- |
+| config | The mapping typically loaded from the yaml file. Defines Python packages to install, files to copy, etc. Refer to the `YAML file` section for the schema. |
+| path | An alternative path to use as the image context. If this location already exists, it will not be cleaned upon finishing the image build. If this location does not exist, pyATS Image Builder will attempt to create it. If not given, a temporary location will be used. |
+| tag | A Docker tag for the completed image that takes precedence over any tag defined inside the config. |
+| keep_context | When `True` prevents the context directory from being cleaned after the build is finished. |
+| verbose | When `True` logs the entire Docker build process to the console. |
+| stream | An IO Stream to write the logging output to. |
+| no_cache | When `True` prevents Docker from using cached images when building, forcing intermediate images to be rebuilt. |
+| dry_run | When `True` prevents the Docker build from happening after assembling the context. |
+
+### Returns
+
+On success, `build()` will return an Image object representing the Docker Image just built. This can be queried for information or used to push the image to a registry.
+
+```python
+from pyatsimagebuilder import build
+config = {'tag':'mypyatsimage:latest', 'packages': ['pyats[full]']}
+image = build(config=config)
+```
+
+---
+
+## Image Class
+
+The `Image` class can retrieve information about the newly created image, as
+well as the push the image to a registry.
+
+```python
+Image(image_id, tag = None)
+```
+
+| Argument | Description |
+| -------- | ----------- |
+| image_id | The hash identifier for this image. |
+| tag | The main tag to use for this image, since images can have multiple tags. If not provided here, must be given when pushing the image instead. |
+
+### `inspect()`
+
+An `Image` object can be queried with `inspect()` for a dict with detailed
+information about the associated Docker image.
+
+```python
+image = build(config)
+image.inspect()
+# {
+#   "Id": "sha256:...",
+#   "RepoTags": ["myimg:latest"],
+#   "Parent": "sha256:...",
+#   "Created": "2020-01-01T20:00:00.0000000Z",
+#   ...
+# }
+```
+
+### `push()`
+
+An `Image` object has a method for pushing the associate Docker image to a
+registry. Handles tagging the image with the registry address for pushing to a
+private registry.
+
+```python
+push(url = None, tag = None, credentials = None)
+```
+
+| Argument | Description |
+| -------- | ----------- |
+| url | The address of the private registry to push to. This can be omitted if the registry is already included in the tag. |
+| tag | An alternative tag to apply before pushing. If used in conjunction with `url`, the two will be combined for the full path to push. |
+| credentials | A dict of `username` and `password` to authenticate with instead of the credentials configured in Docker. |
+
+```python
+image = build(config)
+image.push(url='myregistry.domain.com:5000', tag='myrepo/custom:latest',
+           credentials={'username':username, 'password':password})
+```

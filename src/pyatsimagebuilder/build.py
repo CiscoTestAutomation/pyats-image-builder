@@ -1,4 +1,5 @@
 import os
+import re
 import sys
 import yaml
 import shutil
@@ -13,22 +14,22 @@ import urllib.parse
 
 from .utils import scp
 from .utils import copy
+from .image import Image
 from .utils import git_clone
 from .utils import ftp_retrieve
 from .schema import validate_builder_schema
 
 PACKAGE_PATH = os.path.dirname(__file__)
-PROXY_KEYS = ['HTTP_PROXY', 'HTTPS_PROXY', 'FTP_PROXY', 'NO_PROXY']
 DEFAULT_PYTHON_VERSION = '3.6.9-slim'
 WORKSPACE = '/workspace'
 INSTALL_DIR = '/workspace/installation'
 VIRTUAL_ENV = '/venv'
 
 logger = logging.getLogger(__name__)
-stdout_handle = logging.StreamHandler(stream=sys.stdout)
-logger.addHandler(stdout_handle)
-logger.setLevel(logging.INFO)
-logger.propagate = False
+stdout_handler = logging.StreamHandler(stream=sys.stdout)
+stdout_handler.setLevel('INFO')
+logger.addHandler(stdout_handler)
+logger.setLevel('DEBUG')
 
 
 class ImageBuilder(object):
@@ -41,33 +42,6 @@ class ImageBuilder(object):
         self.virtual_env = None
         # Remove context dir when finished?
         self.remove_context = True
-
-
-    def parser_config(self, argv=None):
-        # Parse arguments for building a docker image
-        parser = argparse.ArgumentParser(prog='pyats-image-build',
-                                         description='Create docker images for '
-                                                     'running pyATS jobs')
-        parser.add_argument('file',
-                            help='YAML file defining the image to be built.')
-        parser.add_argument('--tag', '-t',
-                            help='Tag for docker image. Overrides any tag '
-                                 'defined in the yaml.')
-        parser.add_argument('--path', '-p',
-                            help='Specify a path to use as the context while '
-                                 'building.')
-        parser.add_argument('--no-cache', '-c', action='store_true',
-                            help='Do not use the cache when building the '
-                                 'image.')
-        parser.add_argument('--keep-context', '-k', action='store_true',
-                            help='Prevents the context dir from being deleted '
-                                 'once the image is built')
-        parser.add_argument('--dry-run', '-n', action='store_true',
-                            help='Set up the context but do not build the '
-                                 'image. Use with --keep-context.')
-        parser.add_argument('--verbose', '-v', action='store_true',
-                            help='Prints the output of docker build.')
-        return parser.parse_args(argv)
 
 
     def setup_context(self, path=None):
@@ -219,7 +193,8 @@ class ImageBuilder(object):
                      no_cache=False):
         # Get docker client api
         api = docker.from_env().api
-        build_error = None
+        build_error = []
+        image_id = None
 
         # Trigger docker build
         for line in api.build(path=str(self.context_dir),
@@ -230,50 +205,97 @@ class ImageBuilder(object):
                               decode=True,
                               nocache=no_cache):
 
-            # If verbose, print the build output
-            if verbose:
-                if 'stream' in line:
-                    print(line['stream'], end='')
+            # Log stream from build
+            if 'stream' in line:
+                contents = line['stream'].rstrip()
+                if contents:
+                    logger.debug(contents)
 
             # If we encounter an error, capture it
             if 'errorDetail' in line:
-                build_error = line['errorDetail']['message']
+                build_error.append(line['errorDetail']['message'])
+
+            # Attempt to retrieve image ID
+            if 'stream' in line:
+                m = re.search('^Successfully built (\w+)$', line['stream'])
+                if m:
+                    image_id = m.group(1)
+        api.close()
 
         # Error encountered, raise exception with message
         if build_error:
-            raise Exception('Build Error:\n%s' % build_error)
+            raise Exception('Build Error:\n%s' % '\n'.join(build_error))
+
+        if image_id:
+            # After a successful build, return an image object
+            return Image(image_id, tag)
+        else:
+            # If no "Successfully built..." message is found, we do not have the
+            # ID to create an Image object.
+            raise Exception('No confirmation of successful build.')
 
 
-    def run(self, argv=None):
-        # Parse args from command line
-        args = self.parser_config(argv)
+    def run(self,
+            config={},
+            path=None,
+            tag=None,
+            keep_context=False,
+            verbose=False,
+            stream=None,
+            no_cache=False,
+            dry_run=False):
+        """
+        Arguments
+        ---------
+            config (dict): Build configuration
+            path (str): Path to build context
+            tag (str): Tag for docker image once built
+            keep_context (bool): Prevents deleting the docker build context
+                                 directory after the image is built
+            verbose (bool): Enables more logging to stdout when building
+            stream (IOStream): Stream to write logs to
+            no_cache (bool): Forces the rebuilding of intermediate docker image
+                             layers
+            dry_run (bool): Set up docker build context but do not run build
+
+        Returns
+        -------
+            Image object when successful
+        """
+        image = None
+
+        # Set up logger to use given stream
+        if stream:
+            stream_handler = logging.StreamHandler(stream=stream)
+            stream_handler.setLevel('DEBUG')
+            logger.addHandler(stream_handler)
+
+        # If verbose, log build output to console
+        if verbose:
+            stdout_handler.setLevel('DEBUG')
 
         # Do not delete context at the end if --keep-context is set
-        if args.keep_context:
+        if keep_context:
             self.remove_context = False
 
         # Set up build
-        self.setup_context(args.path)
+        self.setup_context(path)
 
         try:
-            # Read given yaml file
-            logger.info('Reading provided yaml')
-            yaml_content = yaml.safe_load(pathlib.Path(args.file).read_text())
-
             # Verify schema
             logger.info('Verifying schema')
-            validate_builder_schema(yaml_content)
+            validate_builder_schema(config)
 
-            # Copy the build yaml to the image
-            logger.info('Copying %s to context' % args.file)
-            copy(args.file, self.install_dir / 'build.yaml')
+            # Dump config to yaml file in context
+            logger.info('Dumping config to file in context')
+            (self.install_dir / 'build.yaml').write_text(yaml.safe_dump(config))
 
             python_version = DEFAULT_PYTHON_VERSION
-            if 'python' in yaml_content:
+            if 'python' in config:
                 # Ensure python version is a valid format to use as the base
                 # docker image. Appends '-slim' to the given version to acquire
                 # the docker image tag.
-                ver = str(yaml_content['python'])
+                ver = str(config['python'])
                 if not all([n.isdigit() for n in ver.split('.')]):
                     raise TypeError('Python version must be in format '
                                     '3[.X][.X]')
@@ -281,78 +303,155 @@ class ImageBuilder(object):
 
             # Formatted environment variable to add to Dockerfile
             env = ''
-            if 'env' in yaml_content:
-                for key, val in yaml_content['env'].items():
+            if 'env' in config:
+                for key, val in config['env'].items():
                     env += 'ENV %s="%s"\n' % (key, val.replace('"','\\"'))
 
             # Docker commands to insert into the Dockerfile. Very risky.
             pre_cmd = post_cmd = ''
-            if 'cmds' in yaml_content:
-                pre_cmd = str(yaml_content['cmds'].get('pre', ''))
-                post_cmd = str(yaml_content['cmds'].get('post', ''))
+            if 'cmds' in config:
+                pre_cmd = str(config['cmds'].get('pre', ''))
+                post_cmd = str(config['cmds'].get('post', ''))
 
             # Generate Dockerfile and copy other files into image context
             self.handle_docker_files(python_version, env, pre_cmd, post_cmd)
 
             snapshot = {}
-            if 'snapshot' in yaml_content:
+            if 'snapshot' in config:
                 # Extend given packages and repositories with any python
                 # packages or repositories in the snapshot file
-                with open(yaml_content['snapshot']) as f:
+                with open(config['snapshot']) as f:
                     snapshot = yaml.safe_load(f.read())
-                logger.info('Copying %s to context' % yaml_content['snapshot'])
-                copy(yaml_content['snapshot'],
+                logger.info('Copying %s to context' % config['snapshot'])
+                copy(config['snapshot'],
                      self.install_dir / 'snapshot.yaml')
 
             repositories = {}
-            if 'repositories' in yaml_content:
-                repositories.update(yaml_content['repositories'])
+            if 'repositories' in config:
+                repositories.update(config['repositories'])
             if 'repositories' in snapshot:
                 repositories.update(snapshot['repositories'])
             if repositories:
                 self.handle_repositories(repositories)
 
             packages = []
-            if 'packages' in yaml_content:
-                packages.extend(yaml_content['packages'])
+            if 'packages' in config:
+                packages.extend(config['packages'])
             if 'packages' in snapshot:
                 packages.extend(snapshot['packages'])
             self.handle_packages(packages)
 
-            if 'files' in yaml_content:
-                self.handle_files(yaml_content['files'])
+            if 'files' in config:
+                self.handle_files(config['files'])
 
-            if 'pip-config' in yaml_content:
-                self.handle_pip_config(yaml_content['pip-config'])
+            if 'pip-config' in config:
+                self.handle_pip_config(config['pip-config'])
 
             # Use docker build args to set proxy if there is one
             proxy = {}
-            if 'proxy' in yaml_content:
+            if 'proxy' in config:
                 logger.info('Setting proxy args for docker')
                 # Proxy values must only belong to specifically defined keys
-                proxy = yaml_content['proxy']
+                proxy = config['proxy']
 
-            # Tag for docker image   CLI > yaml > None
-            tag = args.tag or yaml_content.get('tag', None)
+            # Tag for docker image   argument (cli) > config (yaml) > None
+            tag = tag or config.get('tag', None)
 
             # Start docker build
-            if not args.dry_run:
+            if not dry_run:
                 logger.info('Building image')
-                self.docker_build(tag=tag,
-                                  build_args=proxy,
-                                  verbose=args.verbose,
-                                  no_cache=args.no_cache)
-                logger.info('Built image successfully')
+                image = self.docker_build(tag=tag,
+                                          build_args=proxy,
+                                          verbose=verbose,
+                                          no_cache=no_cache)
+
+                logger.info("Built image '%s' successfully"
+                            % tag if tag else image.id)
 
         except Exception:
             logger.exception('Failure while building docker image:')
 
         if self.remove_context:
+            logger.info('Removing context directory')
             shutil.rmtree(self.context_dir)
+
+        return image
 
 
 def main():
-    return ImageBuilder().run()
+    """
+    Command line entrypoint
+    """
+    # Parse args from command line
+    parser = argparse.ArgumentParser(prog='pyats-image-build',
+                                        description='Create Docker images for '
+                                                    'running pyATS jobs')
+    parser.add_argument('file',
+                        help='YAML file defining the image to be built.')
+    parser.add_argument('--tag', '-t',
+                        help='Tag for docker image. Overrides any tag defined '
+                             'in the yaml.')
+    parser.add_argument('--path', '-p',
+                        help='Specify a path to use as the context while '
+                             'building.')
+    parser.add_argument('--push', '-P', action='store_true',
+                        help='Push image to once built.')
+    parser.add_argument('--no-cache', '-c', action='store_true',
+                        help='Do not use the cache when building the image.')
+    parser.add_argument('--keep-context', '-k', action='store_true',
+                        help='Prevents the context dir from being deleted '
+                             'once the image is built')
+    parser.add_argument('--dry-run', '-n', action='store_true',
+                        help='Set up the context but do not build the '
+                             'image. Use with --keep-context.')
+    parser.add_argument('--verbose', '-v', action='store_true',
+                        help='Prints the output of docker build.')
+    args = parser.parse_args()
+
+    # Load given yaml file
+    logger.info('Reading provided yaml')
+    config = yaml.safe_load(pathlib.Path(args.file).read_text())
+
+    # Run builder
+    image = ImageBuilder().run(config=config,
+                               path=args.path,
+                               tag=args.tag,
+                               keep_context=args.keep_context,
+                               verbose=args.verbose,
+                               no_cache=args.no_cache,
+                               dry_run=args.dry_run)
+
+    # Optionally push image after building
+    if args.push:
+        logger.info('Pushing image to registry')
+        image.push()
+
+    logger.info('Done')
+
+
+def build(config, **kwargs):
+    """
+    API for building images from another Python script
+
+    Arguments
+    ---------
+        config (dict): Build configuration
+        path (str): Path to build context
+        tag (str): Tag for docker image once built
+        keep_context (bool): Prevents deleting the docker build context
+                             directory after the image is built
+        verbose (bool): Enables more logging to stdout when building
+        stream (IOStream): Stream to write logs to
+        no_cache (bool): Forces the rebuilding of intermediate docker image
+                         layers
+        dry_run (bool): Set up docker build context but do not run build
+
+    Returns
+    -------
+        Image object when successful
+    """
+    # Run builder and return image
+    return ImageBuilder().run(config=config, **kwargs)
 
 if __name__ == '__main__':
     main()
