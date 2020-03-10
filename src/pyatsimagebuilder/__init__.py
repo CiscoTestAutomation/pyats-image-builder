@@ -1,2 +1,2 @@
-from .build import build
+from .builder import build
 from .image import Image

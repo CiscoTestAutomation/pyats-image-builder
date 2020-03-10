@@ -18,8 +18,12 @@ class Image(object):
         # Check that id is valid (while getting tags)
         tags = self.inspect()['RepoTags']
         # Ensure tag is valid
-        if tag and tag not in tags:
-            raise KeyError("No tag '%s' associated with image" % tag)
+        if tag:
+            if tag not in tags:
+                if tag + ':latest' in tags:
+                    self._tag += ':latest'
+                else:
+                    raise KeyError("No tag '%s' associated with image" % tag)
 
     @property
     def tag(self):
@@ -31,11 +35,19 @@ class Image(object):
     @tag.setter
     def tag(self, val):
         """
-        Set image tag in docker, and update inspect
+        Set image tag in docker
         """
+        # Set tag
         if not self._api.tag(self.id, val):
-            raise AttributeError("Cannot tag image with '%s'" % val)
-        self._tag = val
+            raise KeyError("Cannot tag image with '%s'" % val)
+        # Look for tag in image inspect
+        tags = self.inspect()['RepoTags']
+        if val in tags:
+            self._tag = val
+        elif val + ':latest' in tags:
+            self._tag = val + ':latest'
+        else:
+            raise KeyError("Tag '%s' not found associated with image" % val)
 
     def inspect(self):
         """

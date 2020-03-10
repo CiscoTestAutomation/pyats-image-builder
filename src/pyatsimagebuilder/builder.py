@@ -30,6 +30,7 @@ stdout_handler = logging.StreamHandler(stream=sys.stdout)
 stdout_handler.setLevel('INFO')
 logger.addHandler(stdout_handler)
 logger.setLevel('DEBUG')
+logger.propagate = False
 
 
 class ImageBuilder(object):
@@ -247,7 +248,7 @@ class ImageBuilder(object):
         """
         Arguments
         ---------
-            config (dict): Build configuration
+            config (dict): Build configuration
             path (str): Path to build context
             tag (str): Tag for docker image once built
             keep_context (bool): Prevents deleting the docker build context
@@ -263,6 +264,7 @@ class ImageBuilder(object):
             Image object when successful
         """
         image = None
+        error = None
 
         # Set up logger to use given stream
         if stream:
@@ -368,24 +370,30 @@ class ImageBuilder(object):
                 logger.info("Built image '%s' successfully"
                             % tag if tag else image.id)
 
-        except Exception:
+        except Exception as e:
             logger.exception('Failure while building docker image:')
+            # Save error to raise later so we can clean up context first
+            error = e
 
         if self.remove_context:
             logger.info('Removing context directory')
             shutil.rmtree(self.context_dir)
 
+        if error:
+            # After cleaning context, raise error if there was one
+            raise error
+
         return image
 
 
-def main():
+def main(argv=None, prog='pyats-image-build'):
     """
     Command line entrypoint
     """
     # Parse args from command line
-    parser = argparse.ArgumentParser(prog='pyats-image-build',
-                                        description='Create Docker images for '
-                                                    'running pyATS jobs')
+    parser = argparse.ArgumentParser(prog=prog,
+                                     description='Create Docker images for '
+                                                 'running pyATS jobs')
     parser.add_argument('file',
                         help='YAML file defining the image to be built.')
     parser.add_argument('--tag', '-t',
@@ -406,7 +414,7 @@ def main():
                              'image. Use with --keep-context.')
     parser.add_argument('--verbose', '-v', action='store_true',
                         help='Prints the output of docker build.')
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     # Load given yaml file
     logger.info('Reading provided yaml')
