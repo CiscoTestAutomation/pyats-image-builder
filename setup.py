@@ -5,7 +5,7 @@ from setuptools import setup, find_packages
 # launch setup
 setup(
     name = 'pyats-image-builder',
-    version = '20.2',
+    version = '20.2.2',
 
     # descriptions
     description = 'pyATS Docker image creation',
@@ -62,7 +62,8 @@ setup(
 
     # console entry point
     entry_points = {
-        'console_scripts': ['pyats-image-build = pyatsimagebuilder.build:main'],
+        'console_scripts': [
+                'pyats-image-build = pyatsimagebuilder.builder:main'],
         'pyats.cli.commands': [
                 'image = pyatsimagebuilder.commands:ImageCommand'],
     },
