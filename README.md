@@ -4,7 +4,9 @@
 pyATS Image Builder is a stand-alone executable package for generating Docker
 images that have all the necessary components to run a pyATS job. A single YAML
 file must be created to define all of these components. Requires a local Docker
-installation to build the image.
+installation to build the image. For consistency, the entirety of an image name
+including the registry, repository, name, and tag is referred to as a 'tag' in
+this package. Docker tags (such as `:latest`) are not considered separately.
 
 ## General Information
 
@@ -425,21 +427,20 @@ image.inspect()
 ### `push()`
 
 An `Image` object has a method for pushing the associate Docker image to a
-registry. Handles tagging the image with the registry address for pushing to a
-private registry.
+registry. Can add a new tag to the image with the registry address for pushing
+to a private registry.
 
 ```python
-push(url = None, tag = None, credentials = None)
+push(remote_tag = None, credentials = None)
 ```
 
 | Argument | Description |
 | -------- | ----------- |
-| url | The address of the private registry to push to. This can be omitted if the registry is already included in the tag. |
-| tag | An alternative tag to apply before pushing. If used in conjunction with `url`, the two will be combined for the full path to push. |
+| remote_tag | A tag to apply to the image before pushing in order to add the registry. |
 | credentials | A dict of `username` and `password` to authenticate with instead of the credentials configured in Docker. |
 
 ```python
 image = build(config)
-image.push(url='myregistry.domain.com:5000', tag='myrepo/custom:latest',
+image.push(remote_tag='myregistry.domain.com:5000/myrepo/custom:latest',
            credentials={'username':username, 'password':password})
 ```
