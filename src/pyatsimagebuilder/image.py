@@ -55,33 +55,24 @@ class Image(object):
         """
         return self._api.inspect_image(self.id)
 
-    def push(self, url=None, tag=None, credentials=None):
+    def push(self, remote_tag=None, credentials=None):
         """
         Push image to a registry
 
         Arguments
         ---------
-            url (str): Registry location to prepend to image tag before pushing.
-                       Can be omitted if tag already includes the registry.
-            tag (str): Specify an alternative repository/tag to upload with.
+            remote_tag (str): Full name to tag image with before pushing to
+                              include a private registry host.
+                              ie. registry-host:5000/repo/image:latest
             credentials (dict): optional override for username and password when
                                 pushing image.
         """
         # Get the tag to use
-        remote_tag = None
-        if tag:
-            remote_tag = tag.strip(' /')
-        elif self.tag:
-            remote_tag = self.tag.strip(' /')
-        else:
+        if not remote_tag:
+            remote_tag = self.tag
+        if not remote_tag:
             # Image must have a tag
             raise KeyError("Image '%s' has no tag" % self.id)
-
-        # Prepend registry if necessary
-        if url:
-            url = url.strip(' /')
-            if not remote_tag.startswith(url):
-                remote_tag = '%s/%s' % (url, remote_tag)
 
         # Apply tag to image and push with new tag
         push_error = []

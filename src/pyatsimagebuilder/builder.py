@@ -44,7 +44,6 @@ class ImageBuilder(object):
         # Remove context dir when finished?
         self.remove_context = True
 
-
     def setup_context(self, path=None):
         # Path is given and already exists, do not remove when done
         if path and pathlib.Path(path).exists():
@@ -70,7 +69,6 @@ class ImageBuilder(object):
         self.install_dir.mkdir()
         self.virtual_env = self.image_dir / VIRTUAL_ENV.lstrip('/')
         self.virtual_env.mkdir()
-
 
     def handle_files(self, files):
         logger.info('Adding files to workspace')
@@ -134,7 +132,6 @@ class ImageBuilder(object):
                              to_path=to_path, port=port,
                              secure=url_parts.scheme == 'ftps')
 
-
     def handle_repositories(self, repositories):
         # Clone all git repositories and checkout a specific commit
         # if one is given
@@ -148,14 +145,12 @@ class ImageBuilder(object):
             # Clone and checkout the repo
             git_clone(vals['url'], repo_dir, vals.get('commit_id', None), True)
 
-
     def handle_packages(self, packages):
         # Generate python requirements file
         logger.info('Writing Python packages to requirements.txt')
         reqs = '\n'.join(packages) + '\n'
         requirements_file = self.install_dir / 'requirements.txt'
         requirements_file.write_text(reqs)
-
 
     def handle_pip_config(self, config):
         # pip config for setting things like pypi server.
@@ -165,7 +160,6 @@ class ImageBuilder(object):
         pip_conf_file = self.virtual_env / 'pip.conf'
         with pip_conf_file.open('w') as f:
             confparse.write(f)
-
 
     def handle_docker_files(self, python_version, env, pre_cmd, post_cmd):
         # Write formatted Dockerfile in context
@@ -185,7 +179,6 @@ class ImageBuilder(object):
         logger.info('Copying entrypoint.sh to context')
         copy(package_dir / 'docker-entrypoint.sh',
              self.install_dir / 'entrypoint.sh')
-
 
     def docker_build(self,
                      tag=None,
@@ -234,7 +227,6 @@ class ImageBuilder(object):
             # If no "Successfully built..." message is found, we do not have the
             # ID to create an Image object.
             raise Exception('No confirmation of successful build.')
-
 
     def run(self,
             config={},
@@ -288,6 +280,14 @@ class ImageBuilder(object):
             logger.info('Verifying schema')
             validate_builder_schema(config)
 
+            proxy = {}
+            if 'proxy' in config:
+                logger.info('Setting proxy environment variables')
+                # Proxy values must only belong to specifically defined keys
+                proxy = config['proxy']
+                # Update environment with proxy for git and file downloads
+                os.environ.update(config['proxy'])
+
             # Dump config to yaml file in context
             logger.info('Dumping config to file in context')
             (self.install_dir / 'build.yaml').write_text(yaml.safe_dump(config))
@@ -307,7 +307,7 @@ class ImageBuilder(object):
             env = ''
             if 'env' in config:
                 for key, val in config['env'].items():
-                    env += 'ENV %s="%s"\n' % (key, val.replace('"','\\"'))
+                    env += 'ENV %s="%s"\n' % (key, val.replace('"', '\\"'))
 
             # Docker commands to insert into the Dockerfile. Very risky.
             pre_cmd = post_cmd = ''
@@ -348,13 +348,6 @@ class ImageBuilder(object):
 
             if 'pip-config' in config:
                 self.handle_pip_config(config['pip-config'])
-
-            # Use docker build args to set proxy if there is one
-            proxy = {}
-            if 'proxy' in config:
-                logger.info('Setting proxy args for docker')
-                # Proxy values must only belong to specifically defined keys
-                proxy = config['proxy']
 
             # Tag for docker image   argument (cli) > config (yaml) > None
             tag = tag or config.get('tag', None)
@@ -460,6 +453,7 @@ def build(config, **kwargs):
     """
     # Run builder and return image
     return ImageBuilder().run(config=config, **kwargs)
+
 
 if __name__ == '__main__':
     main()
