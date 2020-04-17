@@ -23,6 +23,7 @@ class ImageCommand(Command):
     description = '''
 Docker image related subcommands for generating docker images for pyATS jobs.
     '''
+    standard_logging = False
 
     # this command contains entrypoints
     SUBCMDS_ENTRYPOINT = 'pyats.cli.commands.image'

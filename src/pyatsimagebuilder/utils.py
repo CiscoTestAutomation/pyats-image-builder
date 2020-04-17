@@ -68,3 +68,16 @@ def git_clone(url, path, commit_id=None, rm_git=False):
         shutil.rmtree(repo.git_dir)
 
     return hexsha
+
+
+def stringify_config_lists(config):
+    """
+    In place convert lists into multi-line strings for pip configuration options
+    """
+    items = list(config.items())
+    for key, val in items:
+        if isinstance(val, list):
+            if all([isinstance(s, str) for s in val]):
+                config[key] = '\n'.join(val)
+        elif isinstance(val, dict):
+            stringify_config_lists(val)

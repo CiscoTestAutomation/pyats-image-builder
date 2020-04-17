@@ -17,6 +17,7 @@ from .utils import copy
 from .image import Image
 from .utils import git_clone
 from .utils import ftp_retrieve
+from .utils import stringify_config_lists
 from .schema import validate_builder_schema
 
 PACKAGE_PATH = os.path.dirname(__file__)
@@ -30,7 +31,6 @@ stdout_handler = logging.StreamHandler(stream=sys.stdout)
 stdout_handler.setLevel('INFO')
 logger.addHandler(stdout_handler)
 logger.setLevel('DEBUG')
-logger.propagate = False
 
 
 class ImageBuilder(object):
@@ -87,7 +87,7 @@ class ImageBuilder(object):
             url_parts = urllib.parse.urlsplit(from_path)
             # Use original file name if a new one is not provided
             if not name:
-                name = os.path.basename(url_parts.path)
+                name = os.path.basename(url_parts.path.rstrip('/'))
             to_path = (self.workspace_dir / name).resolve()
             # Ensure file is being copied to workspace
             to_path.relative_to(self.workspace_dir)
@@ -155,11 +155,19 @@ class ImageBuilder(object):
     def handle_pip_config(self, config):
         # pip config for setting things like pypi server.
         logger.info('Writing pip.conf file')
-        confparse = configparser.ConfigParser()
-        confparse.read_dict(config)
         pip_conf_file = self.virtual_env / 'pip.conf'
-        with pip_conf_file.open('w') as f:
-            confparse.write(f)
+        confparse = configparser.ConfigParser()
+        if isinstance(config, dict):
+            # convert from dict
+            stringify_config_lists(config)
+            confparse.read_dict(config)
+            with pip_conf_file.open('w') as f:
+                confparse.write(f)
+        elif isinstance(config, str):
+            # ensure format is valid, but leave the contents to pip
+            confparse.read_string(config)
+            with pip_conf_file.open('w') as f:
+                f.write(config)
 
     def handle_docker_files(self, python_version, env, pre_cmd, post_cmd):
         # Write formatted Dockerfile in context
@@ -265,8 +273,13 @@ class ImageBuilder(object):
             logger.addHandler(stream_handler)
 
         # If verbose, log build output to console
+        debug_handler = None
         if verbose:
-            stdout_handler.setLevel('DEBUG')
+            debug_handler = logging.StreamHandler(stream=sys.stdout)
+            debug_handler.setLevel('DEBUG')
+            debug_handler.addFilter(lambda record:
+                    record.levelno == logging.DEBUG)
+            logger.addHandler(debug_handler)
 
         # Do not delete context at the end if --keep-context is set
         if keep_context:
@@ -291,6 +304,10 @@ class ImageBuilder(object):
             # Dump config to yaml file in context
             logger.info('Dumping config to file in context')
             (self.install_dir / 'build.yaml').write_text(yaml.safe_dump(config))
+
+            # Write pip.conf
+            if 'pip-config' in config:
+                self.handle_pip_config(config['pip-config'])
 
             python_version = DEFAULT_PYTHON_VERSION
             if 'python' in config:
@@ -346,9 +363,6 @@ class ImageBuilder(object):
             if 'files' in config:
                 self.handle_files(config['files'])
 
-            if 'pip-config' in config:
-                self.handle_pip_config(config['pip-config'])
-
             # Tag for docker image   argument (cli) > config (yaml) > None
             tag = tag or config.get('tag', None)
 
@@ -371,6 +385,10 @@ class ImageBuilder(object):
         if self.remove_context:
             logger.info('Removing context directory')
             shutil.rmtree(self.context_dir)
+
+        # Remove debug handler
+        if debug_handler is not None:
+            logger.removeHandler(debug_handler)
 
         if error:
             # After cleaning context, raise error if there was one

@@ -51,8 +51,14 @@ BUILD_SCHEMA = {
             'type': 'array',
             'items': {'type': 'string'}
         },
-        # pip-config takes any dict to give to configparser
-        'pip-config': {'type': 'object'},
+        # pip-config takes either a dict to give to configparser, or an already
+        # formatted config string
+        'pip-config': {
+            'oneOf': [
+                {'type': 'object'},
+                {'type': 'string'}
+            ]
+        },
         'repositories': {
             'type': 'object',
             # Force property to match pattern

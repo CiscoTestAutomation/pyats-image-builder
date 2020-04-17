@@ -209,38 +209,36 @@ repositories.
 
 ## Pip Configuration
 
-pyATS Image Builder uses the values from `pip-config` to build a `pip.conf` file
-in *.ini* format.
+There are two ways to give a configuration for pip. The first is give all the values of the configuration in YAML format under `pip-config` which will be parsed into configuration format. The second is to give an already formatted configuration as a multi-line string under `pip-config`.
 
-This YAML:
+These two methods are equivalent:
 
 ``` yaml
 pip-config:
   global:
     format: columns
     no-cache-dir: false
-    trusted-host: |
-      pypi.python.org
-      pyats-pypi.cisco.com
+    trusted-host:
+      - pypi.python.org
+      - pyats-pypi.cisco.com
     index-url: "http://pyats-pypi.cisco.com/simple"
     disable-pip-version-check: 1
   search:
     index: "http://pyats-pypi.cisco.com"
 ```
 
-Produces this `pip.conf`:
+``` yaml
+pip-config: |
+  [global]
+  format = columns
+  no-cache-dir = false
+  trusted-host = pypi.python.org
+          pyats-pypi.cisco.com
+  index-url = http://pyats-pypi.cisco.com/simple
+  disable-pip-version-check = 1
 
-``` ini
-[global]
-format = columns
-no-cache-dir = false
-trusted-host = pypi.python.org
-        pyats-pypi.cisco.com
-index-url = http://pyats-pypi.cisco.com/simple
-disable-pip-version-check = 1
-
-[search]
-index = http://pyats-pypi.cisco.com
+  [search]
+  index = http://pyats-pypi.cisco.com
 ```
 
 ---
@@ -377,7 +375,7 @@ build(config = {}, path = None, tag = None, keep_context = False,
 | tag | A Docker tag for the completed image that takes precedence over any tag defined inside the config. |
 | keep_context | When `True` prevents the context directory from being cleaned after the build is finished. |
 | verbose | When `True` logs the entire Docker build process to the console. |
-| stream | An IO Stream to write the logging output to. |
+| stream | An IO Stream to write the logging output to. This will always include the Docker build logs. |
 | no_cache | When `True` prevents Docker from using cached images when building, forcing intermediate images to be rebuilt. |
 | dry_run | When `True` prevents the Docker build from happening after assembling the context. |
 
