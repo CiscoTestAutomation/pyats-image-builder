@@ -7,7 +7,7 @@ images.
 
 It does so by abstracting away the need to directly write Dockerfiles, and 
 instead presents the common, boilerplate dependency handling paradigms into 
-a simple to YAML file. 
+a simple to use YAML file. 
 
 In addition, this package helps conventional users make their scripts portable 
 by leveraging the power of Docker, without requiring them to understand how
