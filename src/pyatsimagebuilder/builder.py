@@ -403,28 +403,28 @@ def main(argv=None, prog='pyats-image-build'):
     """
     # Parse args from command line
     parser = argparse.ArgumentParser(prog=prog,
-                                     description='Create Docker images for '
-                                                 'running pyATS jobs')
+                                     description='Create standard pyATS Docker '
+                                                 'images')
     parser.add_argument('file',
-                        help='YAML file defining the image to be built.')
+                        help='YAML file describing the image build details.')
     parser.add_argument('--tag', '-t',
                         help='Tag for docker image. Overrides any tag defined '
                              'in the yaml.')
     parser.add_argument('--path', '-p',
-                        help='Specify a path to use as the context while '
-                             'building.')
+                        help='Specify a path to use as the context directory '
+                             'used for building Docekr image')
     parser.add_argument('--push', '-P', action='store_true',
-                        help='Push image to once built.')
+                        help='Push image to Dockerhub after buiding')
     parser.add_argument('--no-cache', '-c', action='store_true',
-                        help='Do not use the cache when building the image.')
+                        help='Do not use any caching when building the image')
     parser.add_argument('--keep-context', '-k', action='store_true',
-                        help='Prevents the context dir from being deleted '
-                             'once the image is built')
+                        help='Prevents the Docker context directory from being '
+                             'deleted once the image is built')
     parser.add_argument('--dry-run', '-n', action='store_true',
-                        help='Set up the context but do not build the '
-                             'image. Use with --keep-context.')
+                        help='Set up the context directory but do not build the'
+                             ' image. Use with --keep-context.')
     parser.add_argument('--verbose', '-v', action='store_true',
-                        help='Prints the output of docker build.')
+                        help='Prints the output of docker build')
     args = parser.parse_args(argv)
 
     # Load given yaml file

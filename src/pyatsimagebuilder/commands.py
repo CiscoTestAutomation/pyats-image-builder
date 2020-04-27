@@ -21,7 +21,7 @@ class ImageCommand(Command):
     name = 'image'
     help = 'Docker image related features'
     description = '''
-Docker image related subcommands for generating docker images for pyATS jobs.
+Docker image related subcommands for pyATS.
     '''
     standard_logging = False
 
