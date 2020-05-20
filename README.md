@@ -141,6 +141,15 @@ repositories:                   # Git repositories to clone and include in the i
   dirname/repo2name:            # alternatively, you can also specify a sub-folder to clone to
     url: "https://address/path/to/repo2.git"
 
+jobfiles:                       # Additional criteria to consider in job discovery in the image
+                                # [Optional]
+
+  paths:                        # list of paths to the job files
+    - relative/path/to/job.py
+    - /absolute/path/to/job/in/workspace/job.py
+  matches:                      # list of regex expressions to match in discovery
+    - .*job.py
+
 proxy:                          # proxy variables - use this if your host server is behind a proxy
                                 # (needed for pip installations using public PyPI servers)
   HTTP_PROXY: "http://127.0.0.1:1111"
@@ -310,6 +319,50 @@ repositories without any password input. The are instructions for
 and
 [Bitbucket](https://confluence.atlassian.com/bitbucket/set-up-an-ssh-key-728138079.html)
 on how to set up passwordless-ssh for git.
+
+
+#### `jobfiles`
+
+The package searches for all files in the image that have the specific keyword `<PYATS_JOBFILE>` in their header docstring. Files that don't have `<PYATS_JOBFILE>` in their first 10 lines will be excluded. 
+For example, a job file should look like as follows:
+
+```python
+# Docstring
+"""
+<PYATS_JOBFILE>
+my module
+
+it does this and that
+blah blah
+"""
+
+```
+
+You can also define your own files through `paths` and `regex` using below entry in the build yaml config.
+
+```yaml
+# Format
+jobfiles:
+  paths:
+    - <path-to-job-file>
+    - <another-path-to-job-file>
+  matches:
+    - <regex-to-match>
+    - <another-regex-to-match>
+
+
+# Example
+jobfiles:
+  paths:
+    - relative/path/to/job.py
+    - /workspace/path/to/job.py
+  matches:
+    - .*job.py
+```
+
+This list also works with local wheel files, and supports the use of
+`$WORKSPACE` environment variable to reference them. 
+
 
 #### `proxy`
 Proxy variables. Useful if your host server is sitting behind a network
