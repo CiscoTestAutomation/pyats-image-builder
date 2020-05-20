@@ -2,6 +2,7 @@ import os
 import re
 import sys
 import yaml
+import json
 import shutil
 import docker
 import logging
@@ -32,6 +33,25 @@ stdout_handler.setLevel('INFO')
 logger.addHandler(stdout_handler)
 logger.setLevel('DEBUG')
 
+def is_pyats_job(job_file):
+    """ Check whether a (job) file is a pyats jobfile
+    read the first 15 lines of the file
+    Improvement: read first N bytes instead of lines
+    """
+    PYATS_ANCHOR = 'PYATS_JOBFILE'
+    try:
+        count = 0
+        with open(job_file, 'r') as file:
+            while count < 15:
+                count += 1
+                line = file.readline()
+                if not line:
+                    continue
+                if PYATS_ANCHOR in line:
+                    return True
+    except:
+        return False
+    return False
 
 class ImageBuilder(object):
     def __init__(self):
@@ -187,6 +207,69 @@ class ImageBuilder(object):
         logger.info('Copying entrypoint.sh to context')
         copy(package_dir / 'docker-entrypoint.sh',
              self.install_dir / 'entrypoint.sh')
+
+    def discover_jobs(self, jobfiles):
+        logger.info('Discovering Job Files')
+
+        all_files = []
+        for root, dirs, files in os.walk(self.workspace_dir):
+            for file in files:
+                all_files.append(os.path.join(root, file))
+
+        # discover all files that mach given regex patterns
+        if 'match' in jobfiles:
+            regexes = [re.compile(regex) for regex in jobfiles['match']]
+            match_files = list(filter(lambda x: any(regex.match(x) \
+                                        for regex in regexes), all_files))
+
+            for index, file in enumerate(match_files):
+                match_files[index] = file.replace('%s' % \
+                                            self.workspace_dir, WORKSPACE)
+        else:
+            match_files = []
+
+        # discover all files that are in given paths
+        if 'paths' in jobfiles:
+            path_files = []
+            paths = jobfiles['paths']
+
+            # correct / translate user given paths
+            for index, path in enumerate(paths):
+                if path.startswith('/'):
+                    if not path.startswith(WORKSPACE):
+                        paths[index] = '%s%s' % (WORKSPACE, path)
+                elif path.startswith('${WORKSPACE}'):
+                    paths[index] = path.replace('${WORKSPACE}', WORKSPACE)
+                elif path.startswith('$WORKSPACE'):
+                    paths[index] = path.replace('$WORKSPACE', WORKSPACE)
+                else:
+                    paths[index] = '%s/%s' % (WORKSPACE, path)
+
+                # verify if path is a valid file
+                for file in all_files:
+                    if paths[index] in file:
+                        path_files.append(paths[index])
+        else:
+            path_files = []
+
+        # 3) discover all files that are pyats job
+        pyats_files = list(filter(is_pyats_job, all_files))
+
+        for index, file in enumerate(pyats_files):
+            pyats_files[index] = file.replace('%s' % \
+                                        self.workspace_dir, WORKSPACE)
+
+        # concat files paths
+        all_files = list(set(match_files + path_files + pyats_files))
+
+        # write the files into a file as json
+        jobfiles = self.install_dir / 'jobfiles.txt'
+        with open('%s' % jobfiles, 'w') as file:
+            content = json.dumps({'jobs': all_files})
+            file.write(content)
+
+        logger.info('Number of dicsovered job files: %s' % len(all_files))
+        logger.info('Wrote job files into: %s' % jobfiles)
 
     def docker_build(self,
                      tag=None,
@@ -362,6 +445,14 @@ class ImageBuilder(object):
 
             if 'files' in config:
                 self.handle_files(config['files'])
+
+            # job discovery
+            jobfiles = {}
+            if 'jobfiles' in config:
+                jobfiles.update(config['jobfiles'])
+            if 'jobfiles' in snapshot:
+                jobfiles.update(snapshot['jobfiles'])
+            self.discover_jobs(jobfiles)
 
             # Tag for docker image   argument (cli) > config (yaml) > None
             tag = tag or config.get('tag', None)
