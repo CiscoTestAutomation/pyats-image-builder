@@ -209,7 +209,7 @@ class ImageBuilder(object):
              self.install_dir / 'entrypoint.sh')
 
     def discover_jobs(self, jobfiles):
-        logger.info('Discovering Job Files')
+        logger.info('Discovering Jobfiles')
 
         # find all .py files in the workspace
         all_files = glob.glob("%s/**/*.py" % self.workspace_dir, recursive=True)
@@ -264,8 +264,8 @@ class ImageBuilder(object):
             content = json.dumps({'jobs': all_files})
             file.write(content)
 
-        logger.info('Number of dicsovered job files: %s' % len(all_files))
-        logger.info('Wrote job files into: %s' % jobfiles)
+        logger.info('Number of discovered job files: %s' % len(all_files))
+        logger.info('List of job files written to: %s' % jobfiles)
 
     def docker_build(self,
                      tag=None,
