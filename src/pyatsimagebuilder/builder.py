@@ -3,6 +3,7 @@ import re
 import sys
 import yaml
 import json
+import glob
 import shutil
 import docker
 import logging
@@ -26,6 +27,7 @@ DEFAULT_PYTHON_VERSION = '3.6.9-slim'
 WORKSPACE = '/workspace'
 INSTALL_DIR = '/workspace/installation'
 VIRTUAL_ENV = '/venv'
+PYATS_ANCHOR = 'PYATS_JOBFILE'
 
 logger = logging.getLogger(__name__)
 stdout_handler = logging.StreamHandler(stream=sys.stdout)
@@ -36,13 +38,11 @@ logger.setLevel('DEBUG')
 def is_pyats_job(job_file):
     """ Check whether a (job) file is a pyats jobfile
     read the first 15 lines of the file
-    Improvement: read first N bytes instead of lines
     """
-    PYATS_ANCHOR = 'PYATS_JOBFILE'
     try:
         count = 0
         with open(job_file, 'r') as file:
-            while count < 15:
+            while count < 10:
                 count += 1
                 line = file.readline()
                 if not line:
@@ -211,10 +211,8 @@ class ImageBuilder(object):
     def discover_jobs(self, jobfiles):
         logger.info('Discovering Job Files')
 
-        all_files = []
-        for root, dirs, files in os.walk(self.workspace_dir):
-            for file in files:
-                all_files.append(os.path.join(root, file))
+        # find all .py files in the workspace
+        all_files = glob.glob("%s/**/*.py" % self.workspace_dir, recursive=True)
 
         # discover all files that mach given regex patterns
         if 'match' in jobfiles:
@@ -236,8 +234,7 @@ class ImageBuilder(object):
             # correct / translate user given paths
             for index, path in enumerate(paths):
                 if path.startswith('/'):
-                    if not path.startswith(WORKSPACE):
-                        paths[index] = '%s%s' % (WORKSPACE, path)
+                    continue
                 elif path.startswith('${WORKSPACE}'):
                     paths[index] = path.replace('${WORKSPACE}', WORKSPACE)
                 elif path.startswith('$WORKSPACE'):
@@ -246,9 +243,8 @@ class ImageBuilder(object):
                     paths[index] = '%s/%s' % (WORKSPACE, path)
 
                 # verify if path is a valid file
-                for file in all_files:
-                    if paths[index] in file:
-                        path_files.append(paths[index])
+                if os.path.isfile('%s%s' % (self.image_dir, paths[index])):
+                    path_files.append(paths[index])
         else:
             path_files = []
 
@@ -450,8 +446,6 @@ class ImageBuilder(object):
             jobfiles = {}
             if 'jobfiles' in config:
                 jobfiles.update(config['jobfiles'])
-            if 'jobfiles' in snapshot:
-                jobfiles.update(snapshot['jobfiles'])
             self.discover_jobs(jobfiles)
 
             # Tag for docker image   argument (cli) > config (yaml) > None

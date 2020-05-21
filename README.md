@@ -147,7 +147,7 @@ jobfiles:                       # Additional criteria to consider in job discove
   paths:                        # list of paths to the job files
     - relative/path/to/job.py
     - /absolute/path/to/job/in/workspace/job.py
-  matches:                      # list of regex expressions to match in discovery
+  match:                        # list of regex expressions to matching python job files
     - .*job.py
 
 proxy:                          # proxy variables - use this if your host server is behind a proxy
@@ -323,22 +323,24 @@ on how to set up passwordless-ssh for git.
 
 #### `jobfiles`
 
-The package searches for all files in the image that have the specific keyword `<PYATS_JOBFILE>` in their header docstring. Files that don't have `<PYATS_JOBFILE>` in their first 10 lines will be excluded. 
+The package searches for all files with ``.py`` extension in the image that have the specific keyword `<PYATS_JOBFILE>` in their header docstring. Files that don't have `<PYATS_JOBFILE>` in their first 10 lines will be excluded.
 For example, a job file should look like as follows:
 
 ```python
 # Docstring
 """
+my_jobfile.py
 <PYATS_JOBFILE>
-my module
 
-it does this and that
-blah blah
+Description of this job.
 """
+from pyats.easypy import run
+
+...
 
 ```
 
-You can also define your own files through `paths` and `regex` using below entry in the build yaml config.
+You can also define your own job files (with ``.py`` extension) within the build YAML file.
 
 ```yaml
 # Format
@@ -346,7 +348,7 @@ jobfiles:
   paths:
     - <path-to-job-file>
     - <another-path-to-job-file>
-  matches:
+  match:
     - <regex-to-match>
     - <another-regex-to-match>
 
@@ -356,8 +358,9 @@ jobfiles:
   paths:
     - relative/path/to/job.py
     - /workspace/path/to/job.py
-  matches:
+  match:
     - .*job.py
+    - .*example_job.py
 ```
 
 This list also works with local wheel files, and supports the use of
