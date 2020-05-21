@@ -5,11 +5,11 @@ pyATS image builder is a utility package aiming to standardize the building of
 pyATS test scripts and their corresponding environment dependencies into Docker
 images.
 
-It does so by abstracting away the need to directly write Dockerfiles, and 
-instead presents the common, boilerplate dependency handling paradigms into 
-a simple to use YAML file. 
+It does so by abstracting away the need to directly write Dockerfiles, and
+instead presents the common, boilerplate dependency handling paradigms into
+a simple to use YAML file.
 
-In addition, this package helps conventional users make their scripts portable 
+In addition, this package helps conventional users make their scripts portable
 by leveraging the power of Docker, without requiring them to understand how
 the Docker image building process works.
 
@@ -29,7 +29,7 @@ the Docker image building process works.
 
 ## Installation
 
-To install this package, simply `pip install` it onto your server's Python 
+To install this package, simply `pip install` it onto your server's Python
 environment.
 
 ```bash
@@ -40,7 +40,7 @@ bash$ pip install pyats-image-builder
 ## Usage
 
 This package does not require [pyATS](https://developer.cisco.com/pyats/) to be
-installed. It features its own command line interface, `pyats-image-build`. 
+installed. It features its own command line interface, `pyats-image-build`.
 
 However, if you do install this package into an existing pyATS virtual
 environment the primary `pyats` command will be automatically updated to include
@@ -128,18 +128,27 @@ files:                          # list of files from various sources to be copie
 
 packages:                       # List of python packages to be installed into the virtual environment
   - pyats[full]
-  - otherpackage1==1.0          
+  - otherpackage1==1.0
   - otherpackage2==2.0
 
 repositories:                   # Git repositories to clone and include in the image
                                 # [Optional]
-                            
+
   "<name_of_repo>":             # name of the folder to clone to
     url: "ssh://git@address/path/to/repo.git"       # clone source URL
     commit_id: abcd1234                             # [Optional] Commit-id/branch to checkout after cloning
-    
+
   dirname/repo2name:            # alternatively, you can also specify a sub-folder to clone to
     url: "https://address/path/to/repo2.git"
+
+jobfiles:                       # Additional criteria to consider in job discovery in the image
+                                # [Optional]
+
+  paths:                        # list of paths to the jobfiles
+    - relative/path/to/job.py
+    - /absolute/path/to/job/in/workspace/job.py
+  match:                        # list of regex expressions to match python jobfiles
+    - .*job.py
 
 proxy:                          # proxy variables - use this if your host server is behind a proxy
                                 # (needed for pip installations using public PyPI servers)
@@ -150,7 +159,7 @@ proxy:                          # proxy variables - use this if your host server
 
 cmds:                           # Additional commands to be inserted into the Dockerfile
                                 # To be executed before and after the pip install process
-                                # WARNING: This can have unintended consequences. 
+                                # WARNING: This can have unintended consequences.
                                 # Only use if you are *absolutely* sure about what you are done.
                                 # [Optional]
   pre: "dockercommand"          # Docker command(s) in string format, executed before pip installation
@@ -165,21 +174,21 @@ pip-config:                     # Custom pip configuration values
 Docker name/tag to assign to this image after build finishes. This name must
 obey the [official docker image naming convention](https://docs.docker.com/engine/reference/commandline/tag/#extended-description).
 
-You can override the provided name/tag using the `--tag` argument from the 
+You can override the provided name/tag using the `--tag` argument from the
 command line
 
 #### `python`
-Your desired Python version. The pyATS Image Builder builds from a base image of 
+Your desired Python version. The pyATS Image Builder builds from a base image of
 `python:{version}-slim`. The default version is `3.6.9`.
 
 > Make sure your specified version exists at https://hub.docker.com/_/python
 
 #### `env`
-Environment variables to be defined in the image. These environment variables 
+Environment variables to be defined in the image. These environment variables
 will persist in the built image - and visible in your pyATS job runs.
 
 In addition to your custom ones, the builder automatically sets environment
-variable `$WORKSPACE`, typically referring `/workspace` directory. This can be 
+variable `$WORKSPACE`, typically referring `/workspace` directory. This can be
 used to dynamically reference files:
 
 ``` yaml
@@ -196,8 +205,8 @@ repositories:
 #### `files`
 
 Section to specify the list of files or folders to copy to `/workspace`. This
-section allows you to specify both localhost files and remote files to include 
-in your build image, and as well give you a place to rename them on copy. 
+section allows you to specify both localhost files and remote files to include
+in your build image, and as well give you a place to rename them on copy.
 
 ```yaml
 # Format
@@ -209,7 +218,7 @@ files:
 
 List entires under `files` block supports a few different input formats:
 
-- `/path/to/file`: copies a this particular file from your host system to 
+- `/path/to/file`: copies a this particular file from your host system to
   `/workspace/file`
 
 - `new_name: /path/to/file`: copies + rename file, to `/workspace/new_name`
@@ -266,7 +275,7 @@ packages:
 ```
 
 This list also works with local wheel files, and supports the use of
-`$WORKSPACE` environment variable to reference them. 
+`$WORKSPACE` environment variable to reference them.
 
 ``` yaml
 # Example:
@@ -280,7 +289,7 @@ packages:
 
 #### `repositories`
 
-Git repositories to clone to this docker image. By default, each repo will be 
+Git repositories to clone to this docker image. By default, each repo will be
 cloned to the provided name under `/workspace`. However, you may also specify a
 new subdirectory to home it in.
 
@@ -295,21 +304,69 @@ repositories:
 # Example:
 repositories:
     #   equivalent to: git clone https://github.com/CiscoTestAutomation/examples /workspace/examples
-    examples:       
+    examples:
         url: https://github.com/CiscoTestAutomation/examples
 
     #   equivalent to: mkdir -p /workspace/solutions; git clone https://github.com/CiscoTestAutomation/examples /workspace/solutions/examples
-    solutions/examples: 
+    solutions/examples:
         url: https://github.com/CiscoTestAutomation/solution_examples
 
 ```
 
-Note that your build user must have the ability to clone the listed git 
+Note that your build user must have the ability to clone the listed git
 repositories without any password input. The are instructions for
 [GitHub](https://help.github.com/en/github/authenticating-to-github/generating-a-new-ssh-key-and-adding-it-to-the-ssh-agent)
 and
 [Bitbucket](https://confluence.atlassian.com/bitbucket/set-up-an-ssh-key-728138079.html)
 on how to set up passwordless-ssh for git.
+
+
+#### `jobfiles`
+
+pyATS Image Builder will attempt to discover all pyATS jobfiles within the
+image. Only files with a `.py` extension will be considered as potential
+jobfiles for discovery. To enable automatic discovery of your jobfile, include
+the keyword `<PYATS_JOBFILE>` as part of the module docstring within the first
+10 lines of the file.
+
+For example, a jobfile should look similar to the following:
+
+```python
+"""
+my_jobfile.py
+<PYATS_JOBFILE>
+
+Description of this job.
+"""
+from pyats.easypy import run
+
+...
+```
+
+You can also define your jobfiles within the build YAML file.
+
+```yaml
+# Format
+jobfiles:
+  paths:
+    - <path-to-jobfile>
+    - <another-path-to-jobfile>
+  match:
+    - <regex-to-match>
+    - <another-regex-to-match>
+
+# Example
+jobfiles:
+  paths:
+    - relative/path/to/job.py
+    - /workspace/path/to/job.py
+  match:
+    - .*job.py
+    - .*example_job.py
+```
+
+The list of paths also supports the use of the `$WORKSPACE` environment
+variable to define paths.
 
 #### `proxy`
 Proxy variables. Useful if your host server is sitting behind a network
@@ -335,13 +392,13 @@ dependencies.
 
 #### `pip-config`
 
-Pip configuration file. The content of this section gets converted to a 
-`pip.conf` file used to customize your pip installation behavior. 
+Pip configuration file. The content of this section gets converted to a
+`pip.conf` file used to customize your pip installation behavior.
 
-For example, use this section to define your own PyPI server to download 
+For example, use this section to define your own PyPI server to download
 packages from.
 
-This section is read as a dictionary, and parsed directly into 
+This section is read as a dictionary, and parsed directly into
 [pip.conf](https://pip.pypa.io/en/stable/user_guide/#config-file)
 INI format without translation.
 
@@ -357,7 +414,7 @@ pip-config:
 ```
 
 Alternatively, you can also specify your `pip-config` block directly in
-string format - this will be taken directly and stored as the content of 
+string format - this will be taken directly and stored as the content of
 `pip.conf`:
 
 ``` yaml
@@ -385,11 +442,11 @@ structure:
     into here.
 
 /workspace
-    Location where all files and repositories specified in the YAML build  
+    Location where all files and repositories specified in the YAML build
     file gets copied to. Also set as the Docker working directory.
 
 /workspace/installation
-    Files related to the building of this docker image is stored under here. 
+    Files related to the building of this docker image is stored under here.
     (for bookkeeping and debugging)
 
 /workspace/installation/build.yaml
@@ -405,19 +462,19 @@ The image is built in two main stages.
 
 1. the builder parsers the input YAML file and sets up the build context on the
    local build machine in what's called a *build context directory*.
-   
+
 2. Generates a Dockerfile, and launches `docker build` the directory.
 
 ## Build Context Directory
 
 When the builder starts up, it creates a temporary directory in your file
-system (eg, `/tmp`), used for storing artifacts necessary for your pyATS 
+system (eg, `/tmp`), used for storing artifacts necessary for your pyATS
 docker image build process:
 
-- file and git repositories defined in the build YAML file are copied/clones 
+- file and git repositories defined in the build YAML file are copied/clones
   here
 
-- the pip package dependency list in the build YAML file is converted into 
+- the pip package dependency list in the build YAML file is converted into
   a `requirements.txt` file here
 
 - if custom pip configuration is provided, a `pip.conf` file is generated here,
@@ -445,7 +502,7 @@ To run a pyATS job, the command would look like:
 $ docker run --rm myimg:latest pyats run job myrepo/myjob.py
 ```
 
-In this case, the job file in question is `$WORKSPACE/myrepo/myjob.py`. The
+In this case, the jobfile in question is `$WORKSPACE/myrepo/myjob.py`. The
 starting working directory of the image is `$WORKSPACE` which is why it does not
 need to be specified in the command.
 

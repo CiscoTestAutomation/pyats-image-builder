@@ -101,6 +101,19 @@ BUILD_SCHEMA = {
                 'post': {'type': 'string'}
             }
         },
+        'jobfiles': {
+            'type': 'object',
+            'properties': {
+                'paths': {
+                    'type': 'array',
+                    'items': {'type': 'string'}
+                },
+                'match': {
+                    'type': 'array',
+                    'items': {'type': 'string'}
+                }
+            }
+        },
     }
 }
 
