@@ -257,6 +257,9 @@ class ImageBuilder(object):
         # concat files paths
         all_files = list(set(match_files + path_files + pyats_files))
 
+        # exclude all __init__.py files
+        all_files = list(filter(lambda x: not x.endswith('__init__.py'), all_files))
+
         # write the files into a file as json
         jobfiles = self.install_dir / 'jobfiles.txt'
         with open('%s' % jobfiles, 'w') as file:
