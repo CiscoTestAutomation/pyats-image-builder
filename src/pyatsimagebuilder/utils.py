@@ -55,11 +55,9 @@ def git_clone(url, path, commit_id=None, rm_git=False):
     repo = git.Repo.clone_from(url, path)
 
     if commit_id:
-        # If given a commit_id, switch to that commit
-        commit = repo.commit(commit_id)
-        repo.head.reference = commit
-        repo.head.reset(index=True, working_tree=True)
-
+        # If given a commit_id (could be a branch), switch to it
+        repo.git.checkout(commit_id)
+        
     # Get the hexsha of the current commit
     hexsha = repo.head.commit.hexsha
 
