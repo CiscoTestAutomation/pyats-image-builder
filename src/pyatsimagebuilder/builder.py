@@ -28,6 +28,7 @@ WORKSPACE = '/workspace'
 INSTALL_DIR = '/workspace/installation'
 VIRTUAL_ENV = '/venv'
 PYATS_ANCHOR = 'PYATS_JOBFILE'
+DEFAULT_JOB_REGEXES = [re.compile(r'.*job.*\.py'), ]
 
 logger = logging.getLogger(__name__)
 stdout_handler = logging.StreamHandler(stream=sys.stdout)
@@ -215,38 +216,36 @@ class ImageBuilder(object):
         all_files = glob.glob("%s/**/*.py" % self.workspace_dir, recursive=True)
 
         # discover all files that mach given regex patterns
-        if 'match' in jobfiles:
-            regexes = [re.compile(regex) for regex in jobfiles['match']]
-            match_files = list(filter(lambda x: any(regex.match(x) \
-                                        for regex in regexes), all_files))
+        regexes = [re.compile(regex) for regex in jobfiles.get('match', [])]
 
-            for index, file in enumerate(match_files):
-                match_files[index] = file.replace('%s' % \
-                                            self.workspace_dir, WORKSPACE)
-        else:
-            match_files = []
+        if not regexes:
+            # apply default regex
+            regexes = DEFAULT_JOB_REGEXES
+
+        match_files = list(filter(lambda x: any(regex.match(x) \
+                                    for regex in regexes), all_files))
+
+        for index, file in enumerate(match_files):
+            match_files[index] = file.replace('%s' % \
+                                        self.workspace_dir, WORKSPACE)
 
         # discover all files that are in given paths
-        if 'paths' in jobfiles:
-            path_files = []
-            paths = jobfiles['paths']
+        path_files = []
+        paths = jobfiles.get('paths', [])
 
-            # correct / translate user given paths
-            for index, path in enumerate(paths):
-                if path.startswith('/'):
-                    continue
-                elif path.startswith('${WORKSPACE}'):
-                    paths[index] = path.replace('${WORKSPACE}', WORKSPACE)
-                elif path.startswith('$WORKSPACE'):
-                    paths[index] = path.replace('$WORKSPACE', WORKSPACE)
-                else:
-                    paths[index] = '%s/%s' % (WORKSPACE, path)
+        # correct / translate user given paths
+        for index, path in enumerate(paths):
+            if path.startswith('${WORKSPACE}'):
+                paths[index] = path.replace('${WORKSPACE}', WORKSPACE)
+            elif path.startswith('$WORKSPACE'):
+                paths[index] = path.replace('$WORKSPACE', WORKSPACE)
+            else:
+                paths[index] = '%s/%s' % (WORKSPACE, path)
 
-                # verify if path is a valid file
-                if os.path.isfile('%s%s' % (self.image_dir, paths[index])):
-                    path_files.append(paths[index])
-        else:
-            path_files = []
+            # verify if path is a valid file
+            if os.path.isfile('%s%s' % (self.image_dir, paths[index])):
+                path_files.append(paths[index])
+
 
         # 3) discover all files that are pyats job
         pyats_files = list(filter(is_pyats_job, all_files))

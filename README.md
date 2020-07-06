@@ -329,6 +329,9 @@ jobfiles for discovery. To enable automatic discovery of your jobfile, include
 the keyword `<PYATS_JOBFILE>` as part of the module docstring within the first
 10 lines of the file.
 
+By default, all file names containing `*job*.py` will be included as a job file.
+This behavior is overwritten when you provide any `match` regex pattern.
+
 For example, a jobfile should look similar to the following:
 
 ```python
