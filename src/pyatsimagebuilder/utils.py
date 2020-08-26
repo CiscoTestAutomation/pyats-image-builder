@@ -1,5 +1,3 @@
-import os
-import sys
 import ssl
 import git
 import shutil
@@ -7,6 +5,7 @@ import ftplib
 import pathlib
 import subprocess
 
+PYATS_ANCHOR = 'PYATS_JOBFILE'
 
 def copy(fro, to):
     # Copy either a single file or an entire directory
@@ -79,3 +78,22 @@ def stringify_config_lists(config):
                 config[key] = '\n'.join(val)
         elif isinstance(val, dict):
             stringify_config_lists(val)
+
+
+def is_pyats_job(job_file):
+    """ Check whether a (job) file is a pyats jobfile
+    read the first 15 lines of the file
+    """
+    try:
+        count = 0
+        with open(job_file, 'r') as file:
+            while count < 10:
+                count += 1
+                line = file.readline()
+                if not line:
+                    continue
+                if PYATS_ANCHOR in line:
+                    return True
+    except:
+        return False
+    return False

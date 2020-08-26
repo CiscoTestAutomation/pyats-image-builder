@@ -63,7 +63,7 @@ setup(
     # console entry point
     entry_points = {
         'console_scripts': [
-                'pyats-image-build = pyatsimagebuilder.builder:main'],
+                'pyats-image-build = pyatsimagebuilder.main:main'],
         'pyats.cli.commands': [
                 'image = pyatsimagebuilder.commands:ImageCommand'],
     },
