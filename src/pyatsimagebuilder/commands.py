@@ -4,7 +4,7 @@ from pyats.cli.base import Command
 from pyats.cli.base import CommandWithSubcommands
 from pyats.cli.base import Subcommand
 
-from .builder import main as build_main
+from . import main as builder_main
 
 
 class ImageBuild(Command):
@@ -13,7 +13,7 @@ class ImageBuild(Command):
     help = 'Build a Docker image from a YAML file'
 
     def main(self, argv):
-        return build_main(argv, self.prog)
+        return builder_main.main(argv, self.prog)
 
 
 class ImageCommand(Command):

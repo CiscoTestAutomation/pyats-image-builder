@@ -17,7 +17,7 @@ cd ${WORKSPACE}
 # ------------------------
 if [ -z "$1" ]; then
     # Nothing passed -> run bash
-    bash
+    exec bash
 else
     # Other command passed -> execute
     exec "$@"
