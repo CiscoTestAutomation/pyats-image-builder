@@ -2,42 +2,8 @@ import sys
 import yaml
 import logging
 import argparse
-import threading
 
 from .builder import ImageBuilder
-
-
-def build(logfile=None,
-          loglevel=logging.INFO,
-          **kwargs):
-    """
-    API for building images from another Python script
-
-    Arguments
-    ---------
-        logfile (str): file to output build log to
-        loglevel (int): python logging level
-        kwargs (dict): all other arguments passed to ImageBuilder.run() api.
-
-    Returns
-    -------
-        Image object when successful
-    """
-
-    # create our logger (thread safe using current thread
-    logger = '%s.%s' % (logging.getLogger(__name__),
-                        threading.current_thread().name)
-
-    # setup logger
-    logger.propagate = False
-    logger.setLevel(loglevel)
-
-    if logfile:
-        logger.addHandler(logging.FileHandler(logfile))
-
-    # Run builder and return image
-    return ImageBuilder(logger).run(config=config, **kwargs)
-
 
 def main(argv=None, prog='pyats-image-build'):
     """
