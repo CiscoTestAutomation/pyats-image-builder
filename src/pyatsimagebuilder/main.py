@@ -48,11 +48,7 @@ def main(argv=None, prog='pyats-image-build'):
         config = yaml.safe_load(file.read())
 
     # Run builder
-    image = ImageBuilder(logger).run(config=config,
-                                     tag=args.tag,
-                                     keep_context=args.keep_context,
-                                     no_cache=args.no_cache,
-                                     dry_run=args.dry_run)
+    image = ImageBuilder(config, logger).run()
 
     # Optionally push image after building
     if args.push:
