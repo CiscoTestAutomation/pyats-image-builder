@@ -72,7 +72,8 @@ BUILD_SCHEMA = {
                     'additionalProperties': False,
                     'properties': {
                         'url': {'type': 'string'},
-                        'commit_id': {'type': 'string'}
+                        'commit_id': {'type': 'string'},
+                        'requirements_file': {'type': 'boolean'}
                     }
                 }
             }
@@ -109,6 +110,10 @@ BUILD_SCHEMA = {
                     'items': {'type': 'string'}
                 },
                 'match': {
+                    'type': 'array',
+                    'items': {'type': 'string'}
+                },
+                'glob': {
                     'type': 'array',
                     'items': {'type': 'string'}
                 }

@@ -2,13 +2,10 @@ import os
 import re
 import yaml
 import json
-import glob
-import shutil
 import docker
 import logging
 import pathlib
 import requests
-import tempfile
 import configparser
 import urllib.parse
 
@@ -21,280 +18,41 @@ from .utils import (scp,
 
 from .image import Image
 from .schema import validate_builder_schema
+from .context import Context
 
 HERE = pathlib.Path(os.path.dirname(__file__))
-DEFAULT_PYTHON_VERSION = '3.7.9-slim'
-WORKSPACE = 'pyats'
-INSTALL_DIR = 'installation'
-DEFAULT_JOB_REGEXES = [re.compile(r'.*job.*\.py'), ]
+
+PIP_CONF_FILE = 'pip.conf'
+INSTALLATION = pathlib.Path('installation')
+REQUIREMENTS = pathlib.Path('requirements')
+REQUIREMENTS_FILE = 'requirements.txt'
+DEFAULT_JOB_REGEXES = [r'.*job.*\.py', ]
 
 class ImageBuilder(object):
-    def __init__(self, logger = logging.getLogger(__name__)):
-        self.logger = logger
+    
+    def __init__(self, config, logger=logging.getLogger(__name__)):
+        """
+        Arguments
+        ---------
+            config (dict): Build configuration
+            logger (logging.Logger): python logger to use for this build
+        """
 
+        self._logger = logger
+        self._req_counter = 0
+        
+        # init defaults
         self.context = None
-        self.install_dir = None
+        self._docker_build_args = {}
 
-    def setup_context(self):
-        # context is always temporary
-        context = tempfile.TemporaryDirectory(prefix='pyats-image.').name
-        self.context = pathlib.Path(context).expanduser().resolve()
+        # Verify schema
+        self._logger.info('Verifying schema')
+        validate_builder_schema(config)
 
-        if not self.context.exists():
-            self.context.mkdir()
-        
-        self.logger.info('Setting up Docker context in %s' % self.context)
+        self.config = config
+        self.image = Image()
 
-        # context is our /pyats workspace - keep it simple
-        # no need to create more directories
-        self.install_dir = self.context / INSTALL_DIR
-        self.install_dir.mkdir()
-
-    def handle_files(self, files):
-        self.logger.info('Adding files to workspace')
-        for from_path in files:
-            name = None
-            # If a file/dir is given as a dict, the key is the desired name for
-            # that file/dir in the docker image
-            # files:
-            #   - /path/to/a_file
-            #   - new_name: /path/to/original_name
-            if isinstance(from_path, dict):
-                for n, f in from_path.items():
-                    name = n
-                    from_path = f
-            # Files can be given as urls to be downloaded
-            url_parts = urllib.parse.urlsplit(from_path)
-            # Use original file name if a new one is not provided
-            if not name:
-                name = os.path.basename(url_parts.path.rstrip('/'))
-            to_path = (self.workspace / name).resolve()
-            # Ensure file is being copied to workspace
-            to_path.relative_to(self.context)
-            # Prevent overwriting existing files
-            assert not to_path.exists(), "%s already exists" % to_path
-            # Make sure parent dir exists
-            if not to_path.parent.exists():
-                to_path.parent.mkdir(parents=True)
-
-            # Separate host and port, if given
-            host = port = None
-            if url_parts.netloc:
-                host = url_parts.netloc
-                if ':' in host:
-                    host, port = host.split(':')
-                    port = int(port) if port else None
-
-            # Perform action dictated by scheme, or lack of one.
-            if not url_parts.scheme:
-                # Copy file or dir directly
-                self.logger.info('Copying %s' % from_path)
-                copy(from_path, to_path)
-            elif url_parts.scheme in ['http', 'https']:
-                # Download with GET request
-                self.logger.info('Downloading %s' % from_path)
-                r = requests.get(from_path)
-                if r.status_code == 200:
-                    to_path.write_bytes(r.content)
-                else:
-                    raise Exception('Could not download %s' % from_path)
-            elif url_parts.scheme == 'scp':
-                # scp file or dir. Must have passwordless ssh set up.
-                self.logger.info('Copying with scp %s' % from_path)
-                scp(host=host,
-                    from_path=url_parts.path,
-                    to_path=to_path,
-                    port=port)
-            elif url_parts.scheme in ['ftp', 'ftps']:
-                # ftp file. Uses anonymous credentials.
-                self.logger.info('Retreiving from ftp %s' % from_path)
-                ftp_retrieve(host=host, from_path=url_parts.path,
-                             to_path=to_path, port=port,
-                             secure=url_parts.scheme == 'ftps')
-
-    def handle_repositories(self, repositories):
-        # Clone all git repositories and checkout a specific commit
-        # if one is given
-        self.logger.info('Cloning git repositories')
-        for name, vals in repositories.items():
-            self.logger.info('Cloning repo %s' % vals['url'])
-            # Ensure dir is within workspace, and does not already exist
-            repo_dir = (self.context / name).resolve()
-            repo_dir.relative_to(self.context)
-            assert not repo_dir.exists(), "%s already exists" % repo_dir
-            # Clone and checkout the repo
-            git_clone(vals['url'], repo_dir, vals.get('commit_id', None), True)
-
-    def handle_packages(self, packages):
-        # Generate python requirements file
-        self.logger.info('Writing Python packages to requirements.txt')
-        reqs = '\n'.join(packages) + '\n'
-        requirements_file = self.install_dir / 'requirements.txt'
-        requirements_file.write_text(reqs)
-
-    def handle_pip_config(self, config):
-        # pip config for setting things like pypi server.
-        self.logger.info('Writing pip.conf file')
-        pip_conf_file = self.context / 'pip.conf'
-        confparse = configparser.ConfigParser()
-        if isinstance(config, dict):
-            # convert from dict
-            stringify_config_lists(config)
-            confparse.read_dict(config)
-            with pip_conf_file.open('w') as f:
-                confparse.write(f)
-        elif isinstance(config, str):
-            # ensure format is valid, but leave the contents to pip
-            confparse.read_string(config)
-            with pip_conf_file.open('w') as f:
-                f.write(config)
-
-    def handle_docker_files(self, python_version, env, pre_cmd, post_cmd):
-        # Write formatted Dockerfile in context
-        self.logger.info('Writing formatted Dockerfile')
-
-        # read dockerfile template
-        dockerfile = (HERE / 'Dockerfile').read_text()
-
-        # substitute it
-        dockerfile = dockerfile.format(python_version=python_version,
-                                       workspace='/%s' % WORKSPACE,
-                                       env=env,
-                                       pre_cmd=pre_cmd,
-                                       post_cmd=post_cmd)
-
-        # write dockerfile to installation dir
-        (self.install_dir/'Dockerfile').write_text(dockerfile)
-
-        # copy entrypoint to the context
-        self.logger.info('Copying entrypoint.sh to context')
-        
-        copy(HERE / 'docker-entrypoint.sh',
-             self.install_dir / 'entrypoint.sh')
-
-    def discover_jobs(self, jobfiles):
-        self.logger.info('Discovering Jobfiles')
-
-        # find all .py files in the workspace
-        all_files = glob.glob("%s/**/*.py" % self.context, recursive=True)
-
-        # discover all files that mach given regex patterns
-        regexes = [re.compile(regex) for regex in jobfiles.get('match', [])]
-
-        if not regexes:
-            # apply default regex
-            regexes = DEFAULT_JOB_REGEXES
-
-        match_files = list(filter(lambda x: any(regex.match(x) \
-                                    for regex in regexes), all_files))
-
-        for index, file in enumerate(match_files):
-            match_files[index] = file.replace('%s' % \
-                                        self.context, WORKSPACE)
-
-        # discover all files that are in given paths
-        path_files = []
-        paths = jobfiles.get('paths', [])
-
-        # correct / translate user given paths
-        for index, path in enumerate(paths):
-            if path.startswith('${WORKSPACE}'):
-                paths[index] = path.replace('${WORKSPACE}', WORKSPACE)
-            elif path.startswith('$WORKSPACE'):
-                paths[index] = path.replace('$WORKSPACE', WORKSPACE)
-            else:
-                paths[index] = '%s/%s' % (WORKSPACE, path)
-
-            # verify if path is a valid file
-            if os.path.isfile('%s%s' % (self.context, paths[index])):
-                path_files.append(paths[index])
-
-
-        # 3) discover all files that are pyats job
-        pyats_files = list(filter(is_pyats_job, all_files))
-
-        for index, file in enumerate(pyats_files):
-            pyats_files[index] = file.replace('%s' % \
-                                        self.context, WORKSPACE)
-
-        # concat files paths
-        all_files = list(set(match_files + path_files + pyats_files))
-
-        # exclude all __init__.py files
-        all_files = list(filter(lambda x: not x.endswith('__init__.py'), all_files))
-
-        # write the files into a file as json
-        jobfiles = self.install_dir / 'jobfiles.txt'
-        with open('%s' % jobfiles, 'w') as file:
-            content = json.dumps({'jobs': all_files})
-            file.write(content)
-
-        self.logger.info('Number of discovered job files: %s' % len(all_files))
-        self.logger.info('List of job files written to: %s' % jobfiles)
-
-    def docker_build(self,
-                     tag=None,
-                     build_args={},
-                     no_cache=False):
-        # Get docker client api
-        api = docker.from_env().api
-        build_error = []
-        image_id = None
-
-        # Trigger docker build
-        for line in api.build(path=str(self.context),
-                              dockerfile=str(self.install_dir/'Dockerfile'),
-                              tag=tag,
-                              rm=True,
-                              forcerm=True,
-                              buildargs=build_args,
-                              decode=True,
-                              nocache=no_cache):
-
-            # Log stream from build
-            if 'stream' in line:
-                contents = line['stream'].rstrip()
-                if contents:
-                    self.logger.debug(contents)
-
-            # If we encounter an error, capture it
-            if 'errorDetail' in line:
-                build_error.append(line['errorDetail']['message'])
-
-            # Attempt to retrieve image ID
-            if 'stream' in line:
-                m = re.search('^Successfully built (\w+)$', line['stream'])
-                if m:
-                    image_id = m.group(1)
-        api.close()
-
-        # Error encountered, raise exception with message
-        if build_error:
-            raise Exception('Build Error:\n%s' % '\n'.join(build_error))
-
-        if image_id:
-            # After a successful build, return an image object
-            return Image(image_id, tag)
-        else:
-            # If no "Successfully built..." message is found, we do not have the
-            # ID to create an Image object.
-            raise Exception('No confirmation of successful build.')
-
-    def handle_requirements(self, config):
-        if 'match' in requirements:
-            # discover requirement files
-            pass
-
-        if 'paths' in requirements:
-            # specific requirements.txt file by path
-            pass
-
-    def run(self,
-            config={},
-            tag=None,
-            keep_context=False,
-            no_cache=False,
-            dry_run=False):
+    def run(self, keep_context=True, tag=None,no_cache=True,dry_run=False):
         """
         Arguments
         ---------
@@ -311,127 +69,370 @@ class ImageBuilder(object):
         -------
             Image object when successful
         """
-        image = None
-        error = None
 
-        # setup build context
-        self.setup_context()
+        # create context obj
+        self.context = Context(keep=keep_context, logger=self._logger)
 
-        try:
-            # Verify schema
-            self.logger.info('Verifying schema')
-            validate_builder_schema(config)
-
-            # Dump config to yaml file in context
-            self.logger.info('Dumping config to file in context')
-            (self.install_dir / 'build.yaml').write_text(yaml.safe_dump(config))
-
-            proxy = {}
-            if 'proxy' in config:
-                self.logger.info('Setting proxy environment variables')
-                # Proxy values must only belong to specifically defined keys
-                proxy = config['proxy']
-                # Update environment with proxy for git and file downloads
-                os.environ.update(config['proxy'])
-
-            # Write pip.conf
-            if 'pip-config' in config:
-                self.handle_pip_config(config['pip-config'])
+        with self.context:
             
-            if 'python' in config:
-                # user specified python version
+            # create our installation directory 
+            self.context.mkdir(INSTALLATION)
+            self.context.mkdir(INSTALLATION/REQUIREMENTS)
 
-                # Ensure python version is a valid format to use as the base
-                # docker image. Appends '-slim' to the given version to acquire
-                # the docker image tag.
-                ver = str(config['python'])
-                if not all([n.isdigit() for n in ver.split('.')]):
-                    raise TypeError('Python version must be in format '
-                                    '3[.X][.X]')
-                python_version = ver + '-slim'
-            else:
-                # apply default python version
-                python_version = DEFAULT_PYTHON_VERSION
-
-            # Formatted environment variable to add to Dockerfile
-            env = ''
-            if 'env' in config:
-                for key, val in config['env'].items():
-                    env += 'ENV %s="%s"\n' % (key, val.replace('"', '\\"'))
-
-            # Docker commands to insert into the Dockerfile. Very risky.
-            pre_cmd = post_cmd = ''
-            if 'cmds' in config:
-                pre_cmd = str(config['cmds'].get('pre', ''))
-                post_cmd = str(config['cmds'].get('post', ''))
-
-            # Generate Dockerfile and copy other files into image context
-            self.handle_docker_files(python_version, env, pre_cmd, post_cmd)
-
-            snapshot = {}
-            if 'snapshot' in config:
-                # Extend given packages and repositories with any python
-                # packages or repositories in the snapshot file
-                with open(config['snapshot']) as f:
-                    snapshot = yaml.safe_load(f.read())
-                self.logger.info('Copying %s to context' % config['snapshot'])
-                copy(config['snapshot'],
-                     self.install_dir / 'snapshot.yaml')
-
-            repositories = {}
-            if 'repositories' in config:
-                repositories.update(config['repositories'])
-            if 'repositories' in snapshot:
-                repositories.update(snapshot['repositories'])
-            if repositories:
-                self.handle_repositories(repositories)
-
-            packages = []
-            if 'packages' in config:
-                packages.extend(config['packages'])
-            if 'packages' in snapshot:
-                packages.extend(snapshot['packages'])
-            self.handle_packages(packages)
-
-            if 'requirements' in config:
-                self.handle_requirements(config['requirements'])
-
-            if 'files' in config:
-                self.handle_files(config['files'])
-
-            # job discovery
-            jobfiles = {}
-            if 'jobfiles' in config:
-                jobfiles.update(config['jobfiles'])
-            self.discover_jobs(jobfiles)
+            self._populate_context()
 
             # Tag for docker image   argument (cli) > config (yaml) > None
-            tag = tag or config.get('tag', None)
+            self.image.tag = tag or self.config.get('tag', None)  
 
             # Start docker build
             if not dry_run:
-                self.logger.info('Building image')
-                image = self.docker_build(tag=tag,
-                                          build_args=proxy,
-                                          no_cache=no_cache)
-
-                self.logger.info("Built image '%s' successfully" 
-                                 % tag if tag else image.id)
-
-        except Exception as e:
-            self.logger.exception('Failure while building docker image:')
-            # Save error to raise later so we can clean up context first
-            error = e
-
-        if not keep_context:
-            self.logger.info('Removing temporary build directory')
-            shutil.rmtree(self.context)
-
-        if error:
-            # After cleaning context, raise error if there was one
-            raise error
-
-        return image
+                self._logger.info('Building image')
+                self._build_image(no_cache=no_cache)
+                self._logger.info("Built image '%s' successfully" 
+                                    % tag if tag else image.id)    
 
 
+        return self.image
+        
+    def _populate_context(self):
+
+        # Dump config to yaml file in context
+        self._logger.info('Saving config to context folder')
+        self.context.write_file(INSTALLATION / 'build.yaml',
+                                yaml.safe_dump(self.config, 
+                                               default_flow_style=False))
+
+        if 'python' in self.config:
+            # user specified python version/label
+
+            # Ensure python version is a valid format to use as the base
+            # docker image. Appends '-slim' to the given version to acquire
+            # the docker image tag.
+            label = str(self.config['python'])
+            if not all([n.isdigit() for n in label.split('.')]):
+                raise TypeError('Python version must be in format '
+                                '3[.X][.X]')
+
+            self.image.base_image_label = label + '-slim'
+
+        # Formatted environment variable to add to Dockerfile
+        if 'env' in self.config:
+            self.image.env.update(self.config['env'])
+
+        # Docker commands to insert into the Dockerfile. Very risky.
+        if 'cmds' in self.config:
+            self.image.pre_pip_cmds = self.config['cmds'].get('pre', '')
+            self.image.post_pip_cmds = self.config['cmds'].get('post', '')
+
+        # handle proxy
+        if 'proxy' in self.config:
+            self._process_proxy(self.config['proxy'])
+            
+    
+        # generate pip.conf in context
+        if 'pip-config' in self.config:
+            self._process_pip_config(self.config['pip-config'])
+
+        if 'snapshot' in self.config:
+            self._process_snapshot(self.config['snapshot'])
+        
+        if 'repositories' in self.config:
+            self._process_repositories(self.config['repositories'])
+        
+        if 'files' in self.config:
+            self._process_files(self.config['files'])
+
+        if 'requirements' in self.config:
+            self._discover_requirements_txt(self.config['requirements'])
+        
+        # write config/packages last
+        # this ensures these "high-level" packages are installed last
+        # pip install hierarchy = snapshot, then git repo discovered, then 
+        # from config
+        if 'packages' in self.config:
+            self._write_requirements_file(self.config['packages'])
+
+        # job discovery     
+        if 'jobfiles' in self.config:
+            self._discover_jobs(self.config['jobfiles'])   
+
+        # Write formatted Dockerfile in context
+        self._logger.info('Writing formatted Dockerfile')
+        self.context.write_file(INSTALLATION/'Dockerfile', 
+                                self.image.manifest())
+
+
+    def _process_snapshot(self, snapshot_file):
+        # Extend given packages and repositories with any python
+        # packages or repositories in the snapshot file
+        with open(snapshot_file) as f:
+            snapshot = yaml.safe_load(f.read())
+
+        self._logger.info('Copying %s to context' % snapshot_file)
+
+        # keep a copy of it in context
+        context.copy(snapshot_file, INSTALLATION / 'snapshot.yaml')
+
+        # process the snapshot content
+        if 'repositories' in snapshot:
+            self._process_repositories(snapshot['repositories'])
+
+        if 'packages' in snapshot:
+            self._write_requirements_file(snapshot['packages'])
+
+    def _process_proxy(self, proxy_config):
+        self._logger.info('Setting proxy environment variables')
+        # Proxy values must only belong to specifically defined keys
+
+        # Update environment with proxy for git and file downloads
+        os.environ.update(proxy_config)
+        
+        # if proxy is set, it's required for docker build
+        self._docker_build_args.update(proxy_config)
+
+    def _process_files(self, files):
+        self._logger.info('Adding files to workspace')
+        for from_path in files:
+            name = None
+            # If a file/dir is given as a dict, the key is the desired name for
+            # that file/dir in the docker image
+            # files:
+            #   - /path/to/a_file
+            #   - new_name: /path/to/original_name
+            if isinstance(from_path, dict):
+                name, from_path = next(iter(from_path.items()))
+                    
+            # Files can be given as urls to be downloaded
+            url_parts = urllib.parse.urlsplit(from_path)
+
+            # Use original file name if a new one is not provided
+            if not name:
+                name = os.path.basename(url_parts.path.rstrip('/'))
+            
+            # compute where it goes to
+            to_path = self.context.path/name
+
+            # Prevent overwriting existing files
+            assert not to_path.exists(), "%s already exists" % to_path
+
+            # Make sure parent dir exists
+            if not to_path.parent.exists():
+                to_path.parent.mkdir(parents=True)
+
+            # Separate host and port, if given
+            host = port = None
+            if url_parts.netloc:
+                host = url_parts.netloc
+                if ':' in host:
+                    host, port = host.split(':')
+                    port = int(port) if port else None
+
+            # Perform action dictated by scheme, or lack of one.
+            if not url_parts.scheme:
+                # Copy file or dir directly
+                self._logger.info('Copying %s' % from_path)
+                self.context.copy(from_path, to_path)
+
+            elif url_parts.scheme in ['http', 'https']:
+                # Download with GET request
+                self._logger.info('Downloading %s' % from_path)
+                r = requests.get(from_path)
+                if r.status_code == 200:
+                    to_path.write_bytes(r.content)
+                else:
+                    raise Exception('Could not download %s' % from_path)
+            elif url_parts.scheme == 'scp':
+                # scp file or dir. Must have passwordless ssh set up.
+                self._logger.info('Copying with scp %s' % from_path)
+                scp(host=host,
+                    from_path=url_parts.path,
+                    to_path=to_path,
+                    port=port)
+            elif url_parts.scheme in ['ftp', 'ftps']:
+                # ftp file. Uses anonymous credentials.
+                self._logger.info('Retreiving from ftp %s' % from_path)
+                ftp_retrieve(host=host, from_path=url_parts.path,
+                             to_path=to_path, port=port,
+                             secure=url_parts.scheme == 'ftps')
+
+    def _process_repositories(self, repositories):
+        # Clone all git repositories and checkout a specific commit
+        # if one is given
+        self._logger.info('Cloning git repositories')
+
+        for name, vals in repositories.items():
+            self._logger.info('Cloning repo %s' % vals['url'])
+
+            # Ensure dir is within workspace, and does not already exist
+            target = self.context.path / name
+
+            assert not target.exists(), "%s already exists" % name
+
+            # Clone and checkout the repo
+            git_clone(vals['url'], target, vals.get('commit_id', None), True)
+
+            # clone repo's requirements-txt file
+            if vals.get('requirements_file', False) is True:
+                if (target/REQUIREMENTS_FILE).exists():
+                    self._register_requirements_file(target/REQUIREMENTS_FILE)
+
+    def _write_requirements_file(self, packages):
+        # Generate python requirements file
+        self._req_counter += 1
+        filename = '%s-%s' % (self._req_counter, REQUIREMENTS_FILE)
+
+        self._logger.info('Writing %s' % filename)
+
+        # support for rel path and $WORKSPACE files
+        package_content = '\n'.join(self._to_image_path(i) for i in packages)
+        
+        self.context.write_file(INSTALLATION/REQUIREMENTS/filename,
+                                package_content)
+
+    def _register_requirements_file(self, file):
+        self._req_counter += 1
+        filename = '%s-%s' % (self._req_counter, REQUIREMENTS_FILE)
+        self.context.copy(file, INSTALLATION/REQUIREMENTS/filename)
+    
+    def _discover_requirements_txt(self, config):
+         # 1. find all the requirement files in context by regex pattern
+        requirement_files = self.context.search_regex(config['match'],
+                                                      [INSTALLATION,])
+
+        # 2. find all requirement files by glob
+        for pattern in config.get('glob', []):
+            requirement_files.extend(self.context.search_glob(pattern))
+        
+        # 3. find all requirement files by specificy paths
+        for path in config.get('paths', []):
+            path = self.context.path/path
+
+            if path.exists() and path.is_file():
+                requirement_files.append(path)
+        
+        # register them
+        for file in requirement_files:
+            self._register_requirements_file(file)
+
+    def _to_image_path(self, path):
+        '''
+        returns the relative path within image workspace
+        '''
+
+        context_path = str(self.context.path)
+        path = str(path)
+
+        if path.startswith('${WORKSPACE}'):
+            path = path.replace('${WORKSPACE}', self.image.workspace_dir)
+        elif path.startswith('$WORKSPACE'):
+            path = path.replace('$WORKSPACE', self.image.workspace_dir)
+        elif path.startswith(context_path):
+            path = path.replace(context_path, self.image.workspace_dir)
+            
+        return path
+
+    def _process_pip_config(self, config):
+        # pip config for setting things like pypi server.
+        self._logger.info('Writing %s file' % PIP_CONF_FILE)
+
+        confparse = configparser.ConfigParser()
+        
+        if isinstance(config, dict):
+            # convert from dict
+            stringify_config_lists(config)
+            confparse.read_dict(config)
+            
+            with self.context.open(PIP_CONF_FILE, 'w')as f:
+                confparse.write(f)
+        
+        elif isinstance(config, str):
+            # ensure format is valid, but leave the contents to pip
+            confparse.read_string(config)
+            self.context.write_file(PIP_CONF_FILE, config)
+
+
+    def _discover_jobs(self, jobfiles):
+        self._logger.info('Discovering Jobfiles')
+
+        jobfiles.setdefault('match', DEFAULT_JOB_REGEXES)
+
+        # 1. find all the job files in context by regex pattern
+        discovered_jobs = self.context.search_regex(jobfiles['match'],
+                                                    [INSTALLATION,])
+
+        # 2. find all job files by glob
+        for pattern in jobfiles.get('glob', []):
+            discovered_jobs.extend(self.context.search_glob(pattern))
+
+        # 3. find all job files by specificy paths
+        for path in jobfiles.get('paths', []):
+            path = self.context.path/path
+
+            if path.exists() and path.is_file():
+                discovered_jobs.append(path)
+
+        # 4. discover all files that are pyats job by marker
+        discovered_jobs.extend(filter(is_pyats_job, 
+                                       self.context.search_glob('*.py')))
+
+        # sort and remove duplicates
+        discovered_jobs = sorted(set(discovered_jobs))
+
+        # compute path from context to image path
+        rel_job_paths = [self._to_image_path(i) for i in discovered_jobs]
+
+        # write the files into a file as json
+        jobfiles =  INSTALLATION / 'jobfiles.txt'
+        self.context.write_file(INSTALLATION/'jobfiles.txt',
+                                json.dumps({'jobs': rel_job_paths}))
+
+        self._logger.info('Number of discovered job files: %s' 
+                          % len(rel_job_paths))
+        self._logger.info('List of job files written to: %s' % jobfiles)
+
+    def _build_image(self, nocache=False):
+
+        # copy entrypoint to the context
+        self._logger.info('Copying entrypoint to context')
+        self.context.copy(HERE / 'docker-entrypoint.sh',
+                          INSTALLATION / 'entrypoint.sh')
+        
+        # Get docker client api
+        api = docker.from_env().api
+        build_error = []
+
+        # Trigger docker build
+        for line in api.build(path=str(self.context.path),
+                              dockerfile=str(INSTALLATION/'Dockerfile'),
+                              tag=self.image.tag,
+                              rm=True,
+                              forcerm=True,
+                              buildargs=self._docker_build_args,
+                              decode=True,
+                              nocache=no_cache):
+            print(line)
+            # Log stream from build
+            if 'stream' in line:
+                contents = line['stream'].rstrip()
+                if contents:
+                    self._logger.debug(contents)
+
+            # If we encounter an error, capture it
+            if 'errorDetail' in line:
+                build_error.append(line['errorDetail']['message'])
+
+            # retrieve image ID
+            if 'aux' in line and 'ID' in line['aux']:
+                self.image.id = line['aux']['ID']
+
+        api.close()
+
+        # Error encountered, raise exception with message
+        if build_error:
+            raise Exception('Build Error:\n%s' % '\n'.join(build_error))
+
+        if not self.image.id:
+            # we've failed to set the image id - something is wrong!
+            raise Exception('No confirmation of successful build.')
+    
 
