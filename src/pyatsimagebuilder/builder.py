@@ -89,7 +89,7 @@ class ImageBuilder(object):
                 self._logger.info('Building image')
                 self._build_image(no_cache=no_cache)
                 self._logger.info("Built image '%s' successfully" 
-                                    % tag if tag else image.id)    
+                                    % tag if tag else self.image.id)
 
 
         return self.image
@@ -390,7 +390,7 @@ class ImageBuilder(object):
                           % len(rel_job_paths))
         self._logger.info('List of job files written to: %s' % jobfiles)
 
-    def _build_image(self, nocache=False):
+    def _build_image(self, no_cache=False):
 
         # copy entrypoint to the context
         self._logger.info('Copying entrypoint to context')
@@ -410,7 +410,7 @@ class ImageBuilder(object):
                               buildargs=self._docker_build_args,
                               decode=True,
                               nocache=no_cache):
-            print(line)
+
             # Log stream from build
             if 'stream' in line:
                 contents = line['stream'].rstrip()
