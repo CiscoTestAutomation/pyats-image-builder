@@ -171,7 +171,7 @@ class ImageBuilder(object):
         self._logger.info('Copying %s to context' % snapshot_file)
 
         # keep a copy of it in context
-        context.copy(snapshot_file, INSTALLATION / 'snapshot.yaml')
+        self.context.copy(snapshot_file, INSTALLATION / 'snapshot.yaml')
 
         # process the snapshot content
         if 'repositories' in snapshot:
