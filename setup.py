@@ -57,7 +57,8 @@ setup(
 
     # additional package data files that goes into the package itself
     package_data = {
-        '': ['Dockerfile', 'docker-entrypoint.sh']
+        # '': ['Dockerfile', 'docker-entrypoint.sh']
+        '': ['Dockerfile', 'docker-entrypoint.sh', '*.template']
     },
 
     # console entry point
@@ -74,7 +75,8 @@ setup(
                          'requests',
                          'gitpython',
                          'docker',
-                         'jsonschema'],
+                         'jsonschema',
+                         'jinja2'],
 
     # any additional groups of dependencies.
     # install using: $ pip install -e .[dev]
