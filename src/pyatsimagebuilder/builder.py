@@ -52,7 +52,7 @@ class ImageBuilder(object):
         self.config = config
         self.image = Image()
 
-    def run(self, keep_context=True, tag=None,no_cache=True,dry_run=False):
+    def run(self, keep_context=False, tag=None,no_cache=True,dry_run=False):
         """
         Arguments
         ---------
