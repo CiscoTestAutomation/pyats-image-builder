@@ -9,11 +9,11 @@ import requests
 import configparser
 import urllib.parse
 
-from .utils import (scp, 
+from .utils import (scp,
                     copy,
-                    git_clone, 
-                    ftp_retrieve, 
-                    stringify_config_lists, 
+                    git_clone,
+                    ftp_retrieve,
+                    stringify_config_lists,
                     is_pyats_job)
 
 from .image import Image
@@ -29,7 +29,7 @@ REQUIREMENTS_FILE = 'requirements.txt'
 DEFAULT_JOB_REGEXES = [r'.*job.*\.py', ]
 
 class ImageBuilder(object):
-    
+
     def __init__(self, config, logger=logging.getLogger(__name__)):
         """
         Arguments
@@ -40,7 +40,7 @@ class ImageBuilder(object):
 
         self._logger = logger
         self._req_counter = 0
-        
+
         # init defaults
         self.context = None
         self._docker_build_args = {}
@@ -74,32 +74,32 @@ class ImageBuilder(object):
         self.context = Context(keep=keep_context, logger=self._logger)
 
         with self.context:
-            
-            # create our installation directory 
+
+            # create our installation directory
             self.context.mkdir(INSTALLATION)
             self.context.mkdir(INSTALLATION/REQUIREMENTS)
 
             self._populate_context()
 
             # Tag for docker image   argument (cli) > config (yaml) > None
-            self.image.tag = tag or self.config.get('tag', None)  
+            self.image.tag = tag or self.config.get('tag', None)
 
             # Start docker build
             if not dry_run:
                 self._logger.info('Building image')
                 self._build_image(no_cache=no_cache)
-                self._logger.info("Built image '%s' successfully" 
+                self._logger.info("Built image '%s' successfully"
                                     % tag if tag else self.image.id)
 
 
         return self.image
-        
+
     def _populate_context(self):
 
         # Dump config to yaml file in context
         self._logger.info('Saving config to context folder')
         self.context.write_file(INSTALLATION / 'build.yaml',
-                                yaml.safe_dump(self.config, 
+                                yaml.safe_dump(self.config,
                                                default_flow_style=False))
 
         if 'python' in self.config:
@@ -118,6 +118,7 @@ class ImageBuilder(object):
         # Formatted environment variable to add to Dockerfile
         if 'env' in self.config:
             self.image.env.update(self.config['env'])
+            self.image.env = {k: str(v) for k, v in self.image.env.items()}
 
         # Docker commands to insert into the Dockerfile. Very risky.
         if 'cmds' in self.config:
@@ -127,38 +128,38 @@ class ImageBuilder(object):
         # handle proxy
         if 'proxy' in self.config:
             self._process_proxy(self.config['proxy'])
-            
-    
+
+
         # generate pip.conf in context
         if 'pip-config' in self.config:
             self._process_pip_config(self.config['pip-config'])
 
         if 'snapshot' in self.config:
             self._process_snapshot(self.config['snapshot'])
-        
+
         if 'repositories' in self.config:
             self._process_repositories(self.config['repositories'])
-        
+
         if 'files' in self.config:
             self._process_files(self.config['files'])
 
         if 'requirements' in self.config:
             self._discover_requirements_txt(self.config['requirements'])
-        
+
         # write config/packages last
         # this ensures these "high-level" packages are installed last
-        # pip install hierarchy = snapshot, then git repo discovered, then 
+        # pip install hierarchy = snapshot, then git repo discovered, then
         # from config
         if 'packages' in self.config:
             self._write_requirements_file(self.config['packages'])
 
-        # job discovery     
+        # job discovery
         if 'jobfiles' in self.config:
-            self._discover_jobs(self.config['jobfiles'])   
+            self._discover_jobs(self.config['jobfiles'])
 
         # Write formatted Dockerfile in context
         self._logger.info('Writing formatted Dockerfile')
-        self.context.write_file(INSTALLATION/'Dockerfile', 
+        self.context.write_file(INSTALLATION/'Dockerfile',
                                 self.image.manifest())
 
 
@@ -186,7 +187,7 @@ class ImageBuilder(object):
 
         # Update environment with proxy for git and file downloads
         os.environ.update(proxy_config)
-        
+
         # if proxy is set, it's required for docker build
         self._docker_build_args.update(proxy_config)
 
@@ -201,14 +202,14 @@ class ImageBuilder(object):
             #   - new_name: /path/to/original_name
             if isinstance(from_path, dict):
                 name, from_path = next(iter(from_path.items()))
-                    
+
             # Files can be given as urls to be downloaded
             url_parts = urllib.parse.urlsplit(from_path)
 
             # Use original file name if a new one is not provided
             if not name:
                 name = os.path.basename(url_parts.path.rstrip('/'))
-            
+
             # compute where it goes to
             to_path = self.context.path/name
 
@@ -285,7 +286,7 @@ class ImageBuilder(object):
 
         # support for rel path and $WORKSPACE files
         package_content = '\n'.join(self._to_image_path(i) for i in packages)
-        
+
         self.context.write_file(INSTALLATION/REQUIREMENTS/filename,
                                 package_content)
 
@@ -293,7 +294,7 @@ class ImageBuilder(object):
         self._req_counter += 1
         filename = '%s-%s' % (self._req_counter, REQUIREMENTS_FILE)
         self.context.copy(file, INSTALLATION/REQUIREMENTS/filename)
-    
+
     def _discover_requirements_txt(self, config):
          # 1. find all the requirement files in context by regex pattern
         requirement_files = self.context.search_regex(config['match'],
@@ -302,14 +303,14 @@ class ImageBuilder(object):
         # 2. find all requirement files by glob
         for pattern in config.get('glob', []):
             requirement_files.extend(self.context.search_glob(pattern))
-        
+
         # 3. find all requirement files by specificy paths
         for path in config.get('paths', []):
             path = self.context.path/path
 
             if path.exists() and path.is_file():
                 requirement_files.append(path)
-        
+
         # register them
         for file in requirement_files:
             self._register_requirements_file(file)
@@ -328,7 +329,7 @@ class ImageBuilder(object):
             path = path.replace('$WORKSPACE', self.image.workspace_dir)
         elif path.startswith(context_path):
             path = path.replace(context_path, self.image.workspace_dir)
-            
+
         return path
 
     def _process_pip_config(self, config):
@@ -336,15 +337,15 @@ class ImageBuilder(object):
         self._logger.info('Writing %s file' % PIP_CONF_FILE)
 
         confparse = configparser.ConfigParser()
-        
+
         if isinstance(config, dict):
             # convert from dict
             stringify_config_lists(config)
             confparse.read_dict(config)
-            
+
             with self.context.open(PIP_CONF_FILE, 'w')as f:
                 confparse.write(f)
-        
+
         elif isinstance(config, str):
             # ensure format is valid, but leave the contents to pip
             confparse.read_string(config)
@@ -372,7 +373,7 @@ class ImageBuilder(object):
                 discovered_jobs.append(path)
 
         # 4. discover all files that are pyats job by marker
-        discovered_jobs.extend(filter(is_pyats_job, 
+        discovered_jobs.extend(filter(is_pyats_job,
                                        self.context.search_glob('*.py')))
 
         # sort and remove duplicates
@@ -386,7 +387,7 @@ class ImageBuilder(object):
         self.context.write_file(INSTALLATION/'jobfiles.txt',
                                 json.dumps({'jobs': rel_job_paths}))
 
-        self._logger.info('Number of discovered job files: %s' 
+        self._logger.info('Number of discovered job files: %s'
                           % len(rel_job_paths))
         self._logger.info('List of job files written to: %s' % jobfiles)
 
@@ -396,7 +397,7 @@ class ImageBuilder(object):
         self._logger.info('Copying entrypoint to context')
         self.context.copy(HERE / 'docker-entrypoint.sh',
                           INSTALLATION / 'entrypoint.sh')
-        
+
         # Get docker client api
         api = docker.from_env().api
         build_error = []
@@ -434,5 +435,5 @@ class ImageBuilder(object):
         if not self.image.id:
             # we've failed to set the image id - something is wrong!
             raise Exception('No confirmation of successful build.')
-    
+
 
