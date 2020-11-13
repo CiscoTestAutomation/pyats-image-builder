@@ -1,4 +1,3 @@
-
 import re
 import ssl
 import git
@@ -9,6 +8,7 @@ import pathlib
 import subprocess
 
 PYATS_ANCHOR = 'PYATS_JOBFILE'
+
 
 def copy(fro, to):
     # Copy either a single file or an entire directory
@@ -40,11 +40,10 @@ def scp(host, from_path, to_path, port=None):
 
 def ftp_retrieve(host, from_path, to_path, port=None, secure=False):
     if secure:
-        ftp = ftplib.FTP_TLS(
-                context=ssl.create_default_context())
+        ftp = ftplib.FTP_TLS(context=ssl.create_default_context())
     else:
         ftp = ftplib.FTP()
-    host = (host, port) if port else (host,)
+    host = (host, port) if port else (host, )
     ftp.connect(*host)
     ftp.login()
     with open(to_path, 'wb') as f:
@@ -59,7 +58,7 @@ def git_clone(url, path, commit_id=None, rm_git=False):
     if commit_id:
         # If given a commit_id (could be a branch), switch to it
         repo.git.checkout(commit_id)
-        
+
     # Get the hexsha of the current commit
     hexsha = repo.head.commit.hexsha
 
@@ -100,4 +99,3 @@ def is_pyats_job(job_file):
     except:
         return False
     return False
-
