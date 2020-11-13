@@ -4,10 +4,10 @@ import logging
 import pathlib
 import tempfile
 
-class Context(object):
 
-    def __init__(self, 
-                 keep = False,
+class Context(object):
+    def __init__(self,
+                 keep=False,
                  logger=logging.getLogger(__name__),
                  prefix='pyats-image.'):
         '''
@@ -18,17 +18,17 @@ class Context(object):
         self._prefix = prefix
         self.path = None
         self.keep = keep
-       
+
     def mkdir(self, name):
         '''
         create a folder in this build context
         '''
-        folder = self.path/name
+        folder = self.path / name
         folder.mkdir()
         return folder.relative_to(self.path)
 
     def write_file(self, file, content):
-        file = self.path/file
+        file = self.path / file
         file.write_text(content)
 
     def copy(self, src, dst):
@@ -38,7 +38,7 @@ class Context(object):
         '''
         # Copy either a single file or an entire directory
         src = pathlib.Path(src).expanduser()
-        dst = self.path/dst
+        dst = self.path / dst
 
         if src.is_file():
             shutil.copy(src, dst)
@@ -46,19 +46,19 @@ class Context(object):
             shutil.copytree(src, dst)
         else:
             raise OSError('Cannot copy %s' % src)
-            
+
     def open(self, file, op):
-        return open(self.path/file, op)
+        return open(self.path / file, op)
 
     def delete(self):
         if self.keep:
-            self._logger.info('[WARNING] Keeping context directory %s'
-                               % self.path)
+            self._logger.info('[WARNING] Keeping context directory %s' %
+                              self.path)
         else:
-            shutil.rmtree(str(self.path)) 
+            shutil.rmtree(str(self.path))
             self.path = None
             self._logger.info('Deleting context directory %s' % self.path)
-        
+
     def create(self):
         if self.path and self.path.exists():
             raise ValueError('Already created at %s' % self._tempdir)
@@ -68,9 +68,9 @@ class Context(object):
 
         self._logger.info('Setting up Docker context in %s' % self.path)
 
-    def search_regex(self, regexes, ignore_folders = []):
+    def search_regex(self, regexes, ignore_folders=[]):
         regexes = [re.compile(regex) for regex in regexes]
-        ignore_folders = [self.path/i for i in ignore_folders]
+        ignore_folders = [self.path / i for i in ignore_folders]
 
         match = []
 
@@ -79,7 +79,7 @@ class Context(object):
                 continue
             if any(regex.match(file.name) for regex in regexes):
                 match.append(file)
-        
+
         return match
 
     def search_glob(self, pattern):

@@ -34,26 +34,26 @@ Docker image related subcommands for pyATS.
         super().__init__(prog)
 
         # create main subparser section
-        self.subparser = self.parser.add_subparsers(title = 'Subcommands',
-                                                    dest = 'subcmd',
-                                                    metavar = '')
+        self.subparser = self.parser.add_subparsers(title='Subcommands',
+                                                    dest='subcmd',
+                                                    metavar='')
 
         # load all subcommands
         self.subcmds = self.load_subcmds()
 
         # populate subcommands
         for subcmd in self.subcmds.values():
-            self.subparser.add_parser(name = subcmd.name,
-                                      help = subcmd.help,
-                                      add_help = False)
+            self.subparser.add_parser(name=subcmd.name,
+                                      help=subcmd.help,
+                                      add_help=False)
 
     def load_subcmds(self):
-        subcmds = super().load_subcmds(subcommands = self.SUBCOMMANDS,
-                                       entrypoint = self.SUBCMDS_ENTRYPOINT,
-                                       base_cls = self.SUBCMDS_BASECLS)
+        subcmds = super().load_subcmds(subcommands=self.SUBCOMMANDS,
+                                       entrypoint=self.SUBCMDS_ENTRYPOINT,
+                                       base_cls=self.SUBCMDS_BASECLS)
 
         # sort alphabetically
-        return OrderedDict((n,c(self.prog)) for n,c in subcmds.items())
+        return OrderedDict((n, c(self.prog)) for n, c in subcmds.items())
 
     def parse_args(self, argv):
         # inject general group options
@@ -75,7 +75,3 @@ Docker image related subcommands for pyATS.
 
         # do dirty work - pass in the subcommand arguments
         return subcmd.main(subcmd_argv)
-
-
-
-

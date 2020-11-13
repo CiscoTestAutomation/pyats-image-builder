@@ -3,7 +3,7 @@ import docker
 
 from jinja2 import Environment, FileSystemLoader
 
-JINJA2_ENV = Environment(loader=FileSystemLoader(os.path.dirname(__file__)), 
+JINJA2_ENV = Environment(loader=FileSystemLoader(os.path.dirname(__file__)),
                          trim_blocks=True,
                          lstrip_blocks=True)
 DEFAULT_BASE_IMAGE = 'python'
@@ -13,19 +13,20 @@ DEFAULT_WORKSPACE_NAME = 'pyats'
 
 DOCKERIMAGE_TEMPLATE = 'Dockerfile.template'
 
-class Image(object):
 
-    def __init__(self, *,
-                 env = None,
-                 pre_pip_cmds = None,
-                 post_pip_cmds = None,
+class Image(object):
+    def __init__(self,
+                 *,
+                 env=None,
+                 pre_pip_cmds=None,
+                 post_pip_cmds=None,
                  base_image=DEFAULT_BASE_IMAGE,
                  base_image_label=DEFAULT_BASE_IMAGE_LABEL,
                  tini_version=DEFAULT_TINI_VERSION,
                  workspace_name=DEFAULT_WORKSPACE_NAME):
-        
+
         self._template = JINJA2_ENV.get_template(DOCKERIMAGE_TEMPLATE)
-        
+
         self.base_image = base_image
         self.base_image_label = base_image_label
         self.tini_version = tini_version
@@ -34,7 +35,7 @@ class Image(object):
         # docker id and tag
         self.id = None
         self.tag = None
-        
+
         # environment variables
         self.env = env or {}
 
@@ -44,7 +45,6 @@ class Image(object):
 
     def manifest(self):
         return self._template.render(image=self)
-      
 
     def push(self, remote_tag=None, credentials=None):
         """
@@ -71,8 +71,10 @@ class Image(object):
         api = docker.from_env().api
 
         if api.tag(self.id, remote_tag):
-            for line in api.push(remote_tag, auth_config=credentials,
-                                       stream=True, decode=True):
+            for line in api.push(remote_tag,
+                                 auth_config=credentials,
+                                 stream=True,
+                                 decode=True):
                 if 'errorDetail' in line:
                     push_error.append(line['errorDetail']['message'])
         else:
@@ -80,6 +82,5 @@ class Image(object):
 
         # Encountered error when pushing
         if push_error:
-            raise Exception("Error pushing image '%s':\n%s"
-                            % (remote_tag, '\n'.join(push_error)))
-
+            raise Exception("Error pushing image '%s':\n%s" %
+                            (remote_tag, '\n'.join(push_error)))
