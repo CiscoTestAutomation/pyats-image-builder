@@ -73,7 +73,9 @@ BUILD_SCHEMA = {
                     'properties': {
                         'url': {'type': 'string'},
                         'commit_id': {'type': 'string'},
-                        'requirements_file': {'type': 'boolean'}
+                        'requirements_file': {'type': 'boolean'},
+                        'credentials': {'type': 'object'},
+                        'ssh_key': {'type': 'string'},
                     }
                 }
             }
@@ -91,7 +93,8 @@ BUILD_SCHEMA = {
                 'FTP_PROXY': {'type': 'string'},
                 'ftp_proxy': {'type': 'string'},
                 'NO_PROXY': {'type': 'string'},
-                'no_proxy': {'type': 'string'}
+                'no_proxy': {'type': 'string'},
+                'GIT_SSL_NO_VERIFY': {'type': 'string'}
             },
         },
         'cmds': {

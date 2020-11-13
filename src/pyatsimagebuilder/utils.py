@@ -1,4 +1,3 @@
-
 import re
 import ssl
 import git
@@ -7,8 +6,10 @@ import shutil
 import ftplib
 import pathlib
 import subprocess
+import os
 
 PYATS_ANCHOR = 'PYATS_JOBFILE'
+
 
 def copy(fro, to):
     # Copy either a single file or an entire directory
@@ -40,11 +41,10 @@ def scp(host, from_path, to_path, port=None):
 
 def ftp_retrieve(host, from_path, to_path, port=None, secure=False):
     if secure:
-        ftp = ftplib.FTP_TLS(
-                context=ssl.create_default_context())
+        ftp = ftplib.FTP_TLS(context=ssl.create_default_context())
     else:
         ftp = ftplib.FTP()
-    host = (host, port) if port else (host,)
+    host = (host, port) if port else (host, )
     ftp.connect(*host)
     ftp.login()
     with open(to_path, 'wb') as f:
@@ -52,14 +52,36 @@ def ftp_retrieve(host, from_path, to_path, port=None, secure=False):
     ftp.close()
 
 
-def git_clone(url, path, commit_id=None, rm_git=False):
+def git_clone(url,
+              path,
+              commit_id=None,
+              rm_git=False,
+              credentials=None,
+              ssh_key=None):
     # Clone the repo
-    repo = git.Repo.clone_from(url, path)
+
+    print()
+    if credentials:
+        # https git credentials provided
+        clone_with_credentials(url, path, credentials)
+        pass
+
+    elif ssh_key:
+        # ssh key provided
+        print("CLONING WITH {}".format(ssh_key))
+        pass
+    else:
+        print("CLONING WITH {}".format(None))
+        # repo is public
+        repo = git.Repo.clone_from(url, path)
+
+    print()
+    return
 
     if commit_id:
         # If given a commit_id (could be a branch), switch to it
         repo.git.checkout(commit_id)
-        
+
     # Get the hexsha of the current commit
     hexsha = repo.head.commit.hexsha
 
@@ -68,6 +90,17 @@ def git_clone(url, path, commit_id=None, rm_git=False):
         shutil.rmtree(repo.git_dir)
 
     return hexsha
+
+
+def clone_with_credentials(url, path, credentials):
+    print("CLONING WITH {}".format(credentials))
+
+    project_dir = os.path.dirname(os.path.abspath(__file__))
+    os.environ['GIT_ASKPASS'] = os.path.join(project_dir, 'askpass.py')
+    os.environ['GIT_USERNAME'] = credentials['username']
+    os.environ['GIT_PASSWORD'] = credentials['password']
+
+    git.Repo.clone_from(url, path)
 
 
 def stringify_config_lists(config):
@@ -100,4 +133,3 @@ def is_pyats_job(job_file):
     except:
         return False
     return False
-

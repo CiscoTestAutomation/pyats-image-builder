@@ -5,7 +5,7 @@ DIST_DIR      = $(BUILD_DIR)/dist
 
 # Development pkg requirements
 DEPENDENCIES  = pytest wheel PyYAML pip-tools requests gitpython docker
-DEPENDENCIES += jsonschema
+DEPENDENCIES += jsonschema jinja2
 
 .PHONY: help install clean develop undevelop
 
