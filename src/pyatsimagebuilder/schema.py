@@ -93,8 +93,7 @@ BUILD_SCHEMA = {
                 'FTP_PROXY': {'type': 'string'},
                 'ftp_proxy': {'type': 'string'},
                 'NO_PROXY': {'type': 'string'},
-                'no_proxy': {'type': 'string'},
-                'GIT_SSL_NO_VERIFY': {'type': 'string'}
+                'no_proxy': {'type': 'string'}
             },
         },
         'cmds': {

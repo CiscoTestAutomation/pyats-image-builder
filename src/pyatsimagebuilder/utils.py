@@ -61,7 +61,6 @@ def git_clone(url,
               ssh_key=None):
     # Clone the repo
 
-    print()
     if credentials:
         # https git credentials provided
         repo = clone_with_credentials(url, path, credentials)
