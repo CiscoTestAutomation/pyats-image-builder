@@ -274,7 +274,6 @@ class ImageBuilder(object):
                 if (target / REQUIREMENTS_FILE).exists():
                     self._register_requirements_file(target /
                                                      REQUIREMENTS_FILE)
-        exit()
 
     def _write_requirements_file(self, packages):
         # Generate python requirements file
