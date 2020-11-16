@@ -1,4 +1,3 @@
-
 import jsonschema
 
 BUILD_SCHEMA = {
@@ -8,23 +7,28 @@ BUILD_SCHEMA = {
     'additionalProperties': False,
     'properties': {
         # tag is just a string
-        'tag': {'type': 'string'},
+        'tag': {
+            'type': 'string'
+        },
         'python': {
             # Python version can be a string or a number (3.6.8 vs 3.6)
-            'oneOf': [
-                {'type': 'string'},
-                {'type': 'number'}
-            ]
+            'oneOf': [{
+                'type': 'string'
+            }, {
+                'type': 'number'
+            }]
         },
         'env': {
             'type': 'object',
             'additionalProperties': {
                 # Environment variables can be strings numbers or bools.
-                'oneOf': [
-                    {'type': 'string'},
-                    {'type': 'number'},
-                    {'type': 'boolean'}
-                ]
+                'oneOf': [{
+                    'type': 'string'
+                }, {
+                    'type': 'number'
+                }, {
+                    'type': 'boolean'
+                }]
             }
         },
         'files': {
@@ -32,32 +36,40 @@ BUILD_SCHEMA = {
             'items': {
                 # File can be a string or a specific dict
                 'oneOf': [
-                    {'type': 'object',
-                     # Exactly one property
-                     'minProperties': 1,
-                     'maxProperties': 1,
-                     # Force matching of pattern
-                     'additionalProperties': False,
-                     'patternProperties': {
-                         # Cannot have absolute path for destination
-                         '^[^/]': {'type': 'string'}
-                     }
+                    {
+                        'type': 'object',
+                        # Exactly one property
+                        'minProperties': 1,
+                        'maxProperties': 1,
+                        # Force matching of pattern
+                        'additionalProperties': False,
+                        'patternProperties': {
+                            # Cannot have absolute path for destination
+                            '^[^/]': {
+                                'type': 'string'
+                            }
+                        }
                     },
-                    {'type': 'string'}
+                    {
+                        'type': 'string'
+                    }
                 ]
             }
         },
         'packages': {
             'type': 'array',
-            'items': {'type': 'string'}
+            'items': {
+                'type': 'string'
+            }
         },
         # pip-config takes either a dict to give to configparser, or an already
         # formatted config string
         'pip-config': {
-            'oneOf': [
-                {'type': 'object'},
-                {'type': 'string'}
-            ]
+            'oneOf': [{
+                'type': 'object'
+            }, {
+                'type': 'string'
+            }]
         },
         'repositories': {
             'type': 'object',
@@ -71,37 +83,74 @@ BUILD_SCHEMA = {
                     'required': ['url'],
                     'additionalProperties': False,
                     'properties': {
-                        'url': {'type': 'string'},
-                        'commit_id': {'type': 'string'},
-                        'requirements_file': {'type': 'boolean'},
-                        'credentials': {'type': 'object'},
-                        'ssh_key': {'type': 'string'},
+                        'url': {
+                            'type': 'string'
+                        },
+                        'commit_id': {
+                            'type': 'string'
+                        },
+                        'requirements_file': {
+                            'type': 'boolean'
+                        },
+                        'ssh_key': {
+                            'type': 'string'
+                        },
+                        'credentials': {
+                            'username': {
+                                'type': 'string'
+                            },
+                            'password': {
+                                'type': 'string'
+                            }
+                        }
                     }
                 }
             }
         },
-        'snapshot': {'type': 'string'},
+        'snapshot': {
+            'type': 'string'
+        },
         'proxy': {
             'type': 'object',
             # proxy can only accept the defined properties
             'additionalProperties': False,
             'properties': {
-                'HTTP_PROXY': {'type': 'string'},
-                'http_proxy': {'type': 'string'},
-                'HTTPS_PROXY': {'type': 'string'},
-                'https_proxy': {'type': 'string'},
-                'FTP_PROXY': {'type': 'string'},
-                'ftp_proxy': {'type': 'string'},
-                'NO_PROXY': {'type': 'string'},
-                'no_proxy': {'type': 'string'}
+                'HTTP_PROXY': {
+                    'type': 'string'
+                },
+                'http_proxy': {
+                    'type': 'string'
+                },
+                'HTTPS_PROXY': {
+                    'type': 'string'
+                },
+                'https_proxy': {
+                    'type': 'string'
+                },
+                'FTP_PROXY': {
+                    'type': 'string'
+                },
+                'ftp_proxy': {
+                    'type': 'string'
+                },
+                'NO_PROXY': {
+                    'type': 'string'
+                },
+                'no_proxy': {
+                    'type': 'string'
+                }
             },
         },
         'cmds': {
             'type': 'object',
             'additionalProperties': False,
             'properties': {
-                'pre': {'type': 'string'},
-                'post': {'type': 'string'}
+                'pre': {
+                    'type': 'string'
+                },
+                'post': {
+                    'type': 'string'
+                }
             }
         },
         'jobfiles': {
@@ -109,15 +158,21 @@ BUILD_SCHEMA = {
             'properties': {
                 'paths': {
                     'type': 'array',
-                    'items': {'type': 'string'}
+                    'items': {
+                        'type': 'string'
+                    }
                 },
                 'match': {
                     'type': 'array',
-                    'items': {'type': 'string'}
+                    'items': {
+                        'type': 'string'
+                    }
                 },
                 'glob': {
                     'type': 'array',
-                    'items': {'type': 'string'}
+                    'items': {
+                        'type': 'string'
+                    }
                 }
             }
         },
