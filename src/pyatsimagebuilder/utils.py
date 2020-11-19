@@ -119,9 +119,15 @@ def clone_with_ssh(url, path, ssh_key):
     temp.write(ssh_key)
     temp.seek(0)
 
+    GIT_SSH_COMMAND_old = os.environ.get('GIT_SSH_COMMAND', None)
+
     os.environ['GIT_SSH_COMMAND'] = 'ssh -i {}'.format(temp.name)
     repo = git.Repo.clone_from(url, path)
-    del os.environ['GIT_SSH_COMMAND']
+
+    if GIT_SSH_COMMAND_old:
+        os.environ['GIT_SSH_COMMAND'] = GIT_SSH_COMMAND_old
+    else:
+        del os.environ['GIT_SSH_COMMAND']
     return repo
 
 
