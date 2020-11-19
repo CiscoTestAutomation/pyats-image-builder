@@ -98,15 +98,19 @@ def clone_with_ssh(url, path, ssh_key):
     # make temp file for ssh_key
     temp = tempfile.NamedTemporaryFile(mode="w")
 
-    # format the start of the id_rsa file
-    if ssh_key.startswith("-----BEGIN OPENSSH PRIVATE KEY-----"):
+    # remove all line breaks in ssh_key
+    ssh_key = ssh_key.replace('\n', '')
+    ssh_key = ssh_key.strip()
+
+    # add needed line breaks to ssh_key
+
+    if "-----BEGIN OPENSSH PRIVATE KEY-----" in ssh_key:
         ssh_key = ssh_key.replace("-----BEGIN OPENSSH PRIVATE KEY-----",
                                   "-----BEGIN OPENSSH PRIVATE KEY-----\n", 1)
     else:
         ssh_key = "-----BEGIN OPENSSH PRIVATE KEY-----\n" + ssh_key
 
-    # format the end of the id_rsa file
-    if ssh_key.endswith("-----END OPENSSH PRIVATE KEY-----"):
+    if "-----END OPENSSH PRIVATE KEY-----" in ssh_key:
         ssh_key = ssh_key.replace("-----END OPENSSH PRIVATE KEY-----",
                                   "\n-----END OPENSSH PRIVATE KEY-----\n", 1)
     else:

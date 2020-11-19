@@ -96,11 +96,16 @@ BUILD_SCHEMA = {
                             'type': 'string'
                         },
                         'credentials': {
-                            'username': {
-                                'type': 'string'
-                            },
-                            'password': {
-                                'type': 'string'
+                            'type': 'object',
+                            'required': ['username', 'password'],
+                            'additionalProperties': False,
+                            'properties': {
+                                'username': {
+                                    'type': 'string'
+                                },
+                                'password': {
+                                    'type': 'string'
+                                }
                             }
                         }
                     }
