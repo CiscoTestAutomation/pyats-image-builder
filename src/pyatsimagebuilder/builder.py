@@ -93,12 +93,6 @@ class ImageBuilder(object):
 
     def _populate_context(self):
 
-        # Dump config to yaml file in context
-        self._logger.info('Saving config to context folder')
-        self.context.write_file(
-            INSTALLATION / 'build.yaml',
-            yaml.safe_dump(self.config, default_flow_style=False))
-
         if 'python' in self.config:
             # user specified python version/label
 
@@ -156,6 +150,12 @@ class ImageBuilder(object):
         self._logger.info('Writing formatted Dockerfile')
         self.context.write_file(INSTALLATION / 'Dockerfile',
                                 self.image.manifest())
+
+        # Dump config to yaml file in context
+        self._logger.info('Saving config to context folder')
+        self.context.write_file(
+            INSTALLATION / 'build.yaml',
+            yaml.safe_dump(self.config, default_flow_style=False))
 
     def _process_snapshot(self, snapshot_file):
         # Extend given packages and repositories with any python
@@ -267,7 +267,7 @@ class ImageBuilder(object):
 
             # Clone and checkout the repo
             git_clone(vals['url'], target, vals.get('commit_id', None), True,
-                      vals.get('credentials', None), vals.get('ssh_key', None))
+                      vals.pop('credentials', None), vals.pop('ssh_key', None))
 
             # clone repo's requirements-txt file
             if vals.get('requirements_file', False) is True:
