@@ -128,6 +128,8 @@ def clone_with_ssh(url, path, ssh_key):
         os.environ['GIT_SSH_COMMAND'] = GIT_SSH_COMMAND_old
     else:
         del os.environ['GIT_SSH_COMMAND']
+
+    temp.close()
     return repo
 
 
