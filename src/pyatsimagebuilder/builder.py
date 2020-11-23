@@ -25,6 +25,7 @@ REQUIREMENTS_FILE = 'requirements.txt'
 DEFAULT_JOB_REGEXES = [
     r'.*job.*\.py',
 ]
+ENV_PATTERN = re.compile(r'(%ENV{ *([0-9a-zA-Z\_]+) *})')
 
 
 class ImageBuilder(object):
@@ -267,9 +268,20 @@ class ImageBuilder(object):
 
             assert not target.exists(), "%s already exists" % name
 
+            credentials = vals.pop('credentials', None)
+            if credentials:
+                vals['credentials'] = {
+                    'username': '*' * 8,
+                    'password': '*' * 8
+                }
+
+            ssh_key = vals.pop('ssh_key', None)
+            if ssh_key:
+                vals['ssh_key'] = '*' * 8
+
             # Clone and checkout the repo
             git_clone(vals['url'], target, vals.get('commit_id', None), True,
-                      vals.pop('credentials', None), vals.pop('ssh_key', None))
+                      credentials, ssh_key)
 
             # clone repo's requirements-txt file
             if vals.get('requirements_file', False) is True:
@@ -439,25 +451,32 @@ class ImageBuilder(object):
 
     def _replace_environment_variables(self):
 
-        ENV_PATTERN = re.compile(r'(%ENV{ *([0-9a-zA-Z\_]+) *})')
+        _recursive_handle_leaf(self.config, _replace_environment_variable)
 
-        def _recursive_handle_leaf(data, handle):
-            if isinstance(data, dict):
-                for key in data:
-                    if isinstance(data[key], str):
-                        data[key] = handle(data[key])
-                    elif isinstance(data[key], list):
-                        for i in range(len(data[key])):
-                            data[key][i] = handle(data[key][i])
+
+def _replace_environment_variable(data):
+    replace_list = re.findall(ENV_PATTERN, data)
+    for replace_item in replace_list:
+        data = data.replace(replace_item[0], os.environ[replace_item[1]])
+    return data
+
+
+def _recursive_handle_leaf(data, handle):
+    if isinstance(data, dict):
+        for key in data:
+            if isinstance(data[key], str):
+                data[key] = handle(data[key])
+
+            elif isinstance(data[key], list):
+                for i in range(len(data[key])):
+                    if isinstance(data[key][i], str):
+                        data[key][i] = handle(data[key][i])
                     else:
-                        _recursive_handle_leaf(data[key], handle)
+                        pass
+
+            elif isinstance(data[key], dict):
+                _recursive_handle_leaf(data[key], handle)
             else:
-                raise TypeError("Need dict, type={}".format(type(data)))
-
-        def replace_environment_variable(data):
-            replace_list = re.findall(ENV_PATTERN, data)
-            for replace_item in replace_list:
-                data = data.replace(replace_item[0], os.environ[replace_item[1]])
-            return data
-
-        _recursive_handle_leaf(self.config, replace_environment_variable)
+                pass
+    else:
+        raise TypeError("Need dict, type={}".format(type(data)))
