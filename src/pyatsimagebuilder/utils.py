@@ -121,7 +121,15 @@ def clone_with_ssh(url, path, ssh_key):
 
     GIT_SSH_COMMAND_old = os.environ.get('GIT_SSH_COMMAND', None)
 
-    os.environ['GIT_SSH_COMMAND'] = 'ssh -i {}'.format(temp.name)
+    if os.environ.get('socks_proxy', None):
+        os.environ[
+            'GIT_SSH_COMMAND'] = 'ssh -o "StrictHostKeyChecking no" -o "UserKnownHostsFile /dev/null" -o "ProxyCommand nc -x $socks_proxy %h %p" -i {}'.format(
+                temp.name)
+    else:
+        os.environ[
+            'GIT_SSH_COMMAND'] = 'ssh -o "StrictHostKeyChecking no" -o "UserKnownHostsFile /dev/null" -o "ProxyCommand nc -x $socks_proxy %h %p" -i {}'.format(
+                temp.name)
+
     repo = git.Repo.clone_from(url, path)
 
     if GIT_SSH_COMMAND_old:

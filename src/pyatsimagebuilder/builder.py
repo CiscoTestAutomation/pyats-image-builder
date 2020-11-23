@@ -67,7 +67,6 @@ class ImageBuilder(object):
         -------
             Image object when successful
         """
-
         # create context obj
         self.context = Context(keep=keep_context, logger=self._logger)
 

@@ -143,6 +143,12 @@ BUILD_SCHEMA = {
                 },
                 'no_proxy': {
                     'type': 'string'
+                },
+                'socks_proxy': {
+                    'type': 'string'
+                },
+                'SOCKS_PROXY': {
+                    'type': 'string'
                 }
             },
         },

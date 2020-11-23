@@ -68,3 +68,12 @@ undevelop:
 	@echo ""
 	@echo "Done."
 	@echo ""
+
+image:
+	@echo ""
+	@echo "--------------------------------------------------------------------"
+	@echo "Make image"
+	@docker build --build-arg http_proxy=http://proxy.esl.cisco.com:80/ --build-arg https_proxy=http://proxy.esl.cisco.com:80/ --build-arg no_proxy=.cisco.com --no-cache -t image-builder:latest .
+	@echo ""
+	@echo "Done."
+	@echo ""
