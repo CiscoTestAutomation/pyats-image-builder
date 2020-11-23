@@ -92,6 +92,9 @@ class ImageBuilder(object):
 
     def _populate_context(self):
 
+        # replace config with environment variables
+        self._replace_environment_variables()
+
         if 'python' in self.config:
             # user specified python version/label
 
@@ -433,3 +436,28 @@ class ImageBuilder(object):
         if not self.image.id:
             # we've failed to set the image id - something is wrong!
             raise Exception('No confirmation of successful build.')
+
+    def _replace_environment_variables(self):
+
+        ENV_PATTERN = re.compile(r'(%ENV{ *([0-9a-zA-Z\_]+) *})')
+
+        def _recursive_handle_leaf(data, handle):
+            if isinstance(data, dict):
+                for key in data:
+                    if isinstance(data[key], str):
+                        data[key] = handle(data[key])
+                    elif isinstance(data[key], list):
+                        for i in range(len(data[key])):
+                            data[key][i] = handle(data[key][i])
+                    else:
+                        _recursive_handle_leaf(data[key], handle)
+            else:
+                raise TypeError("Need dict, type={}".format(type(data)))
+
+        def replace_environment_variable(data):
+            replace_list = re.findall(ENV_PATTERN, data)
+            for replace_item in replace_list:
+                data = data.replace(replace_item[0], os.environ[replace_item[1]])
+            return data
+
+        _recursive_handle_leaf(self.config, replace_environment_variable)
