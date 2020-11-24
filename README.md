@@ -137,9 +137,13 @@ repositories:                   # Git repositories to clone and include in the i
   "<name_of_repo>":             # name of the folder to clone to
     url: "ssh://git@address/path/to/repo.git"       # clone source URL
     commit_id: abcd1234                             # [Optional] Commit-id/branch to checkout after cloning
+    ssh_key: "<private_ssh_key>"                    # [Optional] Private ssh key for private repositories
 
   dirname/repo2name:            # alternatively, you can also specify a sub-folder to clone to
     url: "https://address/path/to/repo2.git"
+    credentials:                                    # [Optional] Git credentials for private repositories
+        username: "<git_username>"
+        password: "<git_password>"
 
 jobfiles:                       # Additional criteria to consider in job discovery in the image
                                 # [Optional]

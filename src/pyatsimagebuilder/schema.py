@@ -91,6 +91,22 @@ BUILD_SCHEMA = {
                         },
                         'requirements_file': {
                             'type': 'boolean'
+                        },
+                        'ssh_key': {
+                            'type': 'string'
+                        },
+                        'credentials': {
+                            'type': 'object',
+                            'required': ['username', 'password'],
+                            'additionalProperties': False,
+                            'properties': {
+                                'username': {
+                                    'type': 'string'
+                                },
+                                'password': {
+                                    'type': 'string'
+                                }
+                            }
                         }
                     }
                 }
@@ -126,6 +142,12 @@ BUILD_SCHEMA = {
                     'type': 'string'
                 },
                 'no_proxy': {
+                    'type': 'string'
+                },
+                'socks_proxy': {
+                    'type': 'string'
+                },
+                'SOCKS_PROXY': {
                     'type': 'string'
                 }
             },

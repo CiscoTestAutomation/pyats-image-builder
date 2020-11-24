@@ -44,3 +44,8 @@ htmlcov/
 
 # vscode
 .vscode
+
+# venv
+lib
+bin
+pyvenv.cfg

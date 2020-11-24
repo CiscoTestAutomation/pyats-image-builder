@@ -6,6 +6,8 @@ import shutil
 import ftplib
 import pathlib
 import subprocess
+import os
+import tempfile
 
 PYATS_ANCHOR = 'PYATS_JOBFILE'
 
@@ -51,9 +53,23 @@ def ftp_retrieve(host, from_path, to_path, port=None, secure=False):
     ftp.close()
 
 
-def git_clone(url, path, commit_id=None, rm_git=False):
+def git_clone(url,
+              path,
+              commit_id=None,
+              rm_git=False,
+              credentials=None,
+              ssh_key=None):
     # Clone the repo
-    repo = git.Repo.clone_from(url, path)
+
+    if credentials:
+        # https git credentials provided
+        repo = clone_with_credentials(url, path, credentials)
+    elif ssh_key:
+        # ssh key provided
+        repo = clone_with_ssh(url, path, ssh_key)
+    else:
+        # repo is public
+        repo = git.Repo.clone_from(url, path)
 
     if commit_id:
         # If given a commit_id (could be a branch), switch to it
@@ -67,6 +83,62 @@ def git_clone(url, path, commit_id=None, rm_git=False):
         shutil.rmtree(repo.git_dir)
 
     return hexsha
+
+
+def clone_with_credentials(url, path, credentials):
+    from urllib.parse import urlparse
+    url = urlparse(url)
+    url = url._replace(netloc='{}:{}@{}'.format(
+        credentials['username'], credentials['password'], url.netloc))
+    return git.Repo.clone_from(url.geturl(), path)
+
+
+def clone_with_ssh(url, path, ssh_key):
+
+    # make temp file for ssh_key
+    temp = tempfile.NamedTemporaryFile(mode="w")
+
+    # remove all line breaks in ssh_key
+    ssh_key = ssh_key.replace('\n', '')
+    ssh_key = ssh_key.strip()
+
+    # add needed line breaks to ssh_key
+
+    if "-----BEGIN OPENSSH PRIVATE KEY-----" in ssh_key:
+        ssh_key = ssh_key.replace("-----BEGIN OPENSSH PRIVATE KEY-----",
+                                  "-----BEGIN OPENSSH PRIVATE KEY-----\n", 1)
+    else:
+        ssh_key = "-----BEGIN OPENSSH PRIVATE KEY-----\n" + ssh_key
+
+    if "-----END OPENSSH PRIVATE KEY-----" in ssh_key:
+        ssh_key = ssh_key.replace("-----END OPENSSH PRIVATE KEY-----",
+                                  "\n-----END OPENSSH PRIVATE KEY-----\n", 1)
+    else:
+        ssh_key = ssh_key + "\n-----END OPENSSH PRIVATE KEY-----\n"
+
+    temp.write(ssh_key)
+    temp.seek(0)
+
+    GIT_SSH_COMMAND_old = os.environ.get('GIT_SSH_COMMAND', None)
+
+    if os.environ.get('socks_proxy', None):
+        os.environ[
+            'GIT_SSH_COMMAND'] = 'ssh -o "StrictHostKeyChecking no" -o "UserKnownHostsFile /dev/null" -o "ProxyCommand nc -x $socks_proxy %h %p" -i {}'.format(
+                temp.name)
+    else:
+        os.environ[
+            'GIT_SSH_COMMAND'] = 'ssh -o "StrictHostKeyChecking no" -o "UserKnownHostsFile /dev/null" -i {}'.format(
+                temp.name)
+
+    repo = git.Repo.clone_from(url, path)
+
+    if GIT_SSH_COMMAND_old:
+        os.environ['GIT_SSH_COMMAND'] = GIT_SSH_COMMAND_old
+    else:
+        del os.environ['GIT_SSH_COMMAND']
+
+    temp.close()
+    return repo
 
 
 def stringify_config_lists(config):

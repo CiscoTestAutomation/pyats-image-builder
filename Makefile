@@ -5,7 +5,7 @@ DIST_DIR      = $(BUILD_DIR)/dist
 
 # Development pkg requirements
 DEPENDENCIES  = pytest wheel PyYAML pip-tools requests gitpython docker
-DEPENDENCIES += jsonschema
+DEPENDENCIES += jsonschema jinja2
 
 .PHONY: help install clean develop undevelop
 
@@ -65,6 +65,15 @@ undevelop:
 	@echo "--------------------------------------------------------------------"
 	@echo "Removing development environment"
 	@python setup.py develop -q --no-deps --uninstall
+	@echo ""
+	@echo "Done."
+	@echo ""
+
+image:
+	@echo ""
+	@echo "--------------------------------------------------------------------"
+	@echo "Make image"
+	@docker build --build-arg --no-cache -t image-builder:latest .
 	@echo ""
 	@echo "Done."
 	@echo ""

@@ -25,6 +25,7 @@ REQUIREMENTS_FILE = 'requirements.txt'
 DEFAULT_JOB_REGEXES = [
     r'.*job.*\.py',
 ]
+ENV_PATTERN = re.compile(r'(%ENV{ *([0-9a-zA-Z\_]+) *})')
 
 
 class ImageBuilder(object):
@@ -67,7 +68,6 @@ class ImageBuilder(object):
         -------
             Image object when successful
         """
-
         # create context obj
         self.context = Context(keep=keep_context, logger=self._logger)
 
@@ -93,11 +93,8 @@ class ImageBuilder(object):
 
     def _populate_context(self):
 
-        # Dump config to yaml file in context
-        self._logger.info('Saving config to context folder')
-        self.context.write_file(
-            INSTALLATION / 'build.yaml',
-            yaml.safe_dump(self.config, default_flow_style=False))
+        # replace config with environment variables
+        self._replace_environment_variables()
 
         if 'python' in self.config:
             # user specified python version/label
@@ -156,6 +153,12 @@ class ImageBuilder(object):
         self._logger.info('Writing formatted Dockerfile')
         self.context.write_file(INSTALLATION / 'Dockerfile',
                                 self.image.manifest())
+
+        # Dump config to yaml file in context
+        self._logger.info('Saving config to context folder')
+        self.context.write_file(
+            INSTALLATION / 'build.yaml',
+            yaml.safe_dump(self.config, default_flow_style=False))
 
     def _process_snapshot(self, snapshot_file):
         # Extend given packages and repositories with any python
@@ -265,8 +268,20 @@ class ImageBuilder(object):
 
             assert not target.exists(), "%s already exists" % name
 
+            credentials = vals.pop('credentials', None)
+            if credentials:
+                vals['credentials'] = {
+                    'username': '*' * 8,
+                    'password': '*' * 8
+                }
+
+            ssh_key = vals.pop('ssh_key', None)
+            if ssh_key:
+                vals['ssh_key'] = '*' * 8
+
             # Clone and checkout the repo
-            git_clone(vals['url'], target, vals.get('commit_id', None), True)
+            git_clone(vals['url'], target, vals.get('commit_id', None), True,
+                      credentials, ssh_key)
 
             # clone repo's requirements-txt file
             if vals.get('requirements_file', False) is True:
@@ -433,3 +448,35 @@ class ImageBuilder(object):
         if not self.image.id:
             # we've failed to set the image id - something is wrong!
             raise Exception('No confirmation of successful build.')
+
+    def _replace_environment_variables(self):
+
+        _recursive_handle_leaf(self.config, _replace_environment_variable)
+
+
+def _replace_environment_variable(data):
+    replace_list = re.findall(ENV_PATTERN, data)
+    for replace_item in replace_list:
+        data = data.replace(replace_item[0], os.environ[replace_item[1]])
+    return data
+
+
+def _recursive_handle_leaf(data, handle):
+    if isinstance(data, dict):
+        for key in data:
+            if isinstance(data[key], str):
+                data[key] = handle(data[key])
+
+            elif isinstance(data[key], list):
+                for i in range(len(data[key])):
+                    if isinstance(data[key][i], str):
+                        data[key][i] = handle(data[key][i])
+                    else:
+                        pass
+
+            elif isinstance(data[key], dict):
+                _recursive_handle_leaf(data[key], handle)
+            else:
+                pass
+    else:
+        raise TypeError("Need dict, type={}".format(type(data)))
