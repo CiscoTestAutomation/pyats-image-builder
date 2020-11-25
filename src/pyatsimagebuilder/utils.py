@@ -8,6 +8,7 @@ import pathlib
 import subprocess
 import os
 import tempfile
+from urllib.parse import urlparse
 
 PYATS_ANCHOR = 'PYATS_JOBFILE'
 
@@ -86,11 +87,22 @@ def git_clone(url,
 
 
 def clone_with_credentials(url, path, credentials):
-    from urllib.parse import urlparse
-    url = urlparse(url)
-    url = url._replace(netloc='{}:{}@{}'.format(
-        credentials['username'], credentials['password'], url.netloc))
-    return git.Repo.clone_from(url.geturl(), path)
+
+    project_dir = os.path.dirname(os.path.abspath(__file__))
+    print("ANDASND!!!!!")
+    print(project_dir)
+    print(url)
+    os.environ['GIT_ASKPASS'] = os.path.join(project_dir, 'askpass.py')
+    os.environ['GIT_USERNAME'] = 'adelph-cisco'
+    os.environ['GIT_PASSWORD'] = 'gitpassword11'
+
+    # url = urlparse(url)
+    # url = url._replace(
+    #     netloc='{}@{}'.format(credentials['username'], url.netloc))
+
+    # print('reformed', url.geturl())
+
+    return git.Repo.clone_from(url, path)
 
 
 def clone_with_ssh(url, path, ssh_key):
