@@ -89,18 +89,10 @@ def git_clone(url,
 def clone_with_credentials(url, path, credentials):
 
     project_dir = os.path.dirname(os.path.abspath(__file__))
-    print("ANDASND!!!!!")
-    print(project_dir)
-    print(url)
+
     os.environ['GIT_ASKPASS'] = os.path.join(project_dir, 'askpass.py')
-    os.environ['GIT_USERNAME'] = 'adelph-cisco'
-    os.environ['GIT_PASSWORD'] = 'gitpassword11'
-
-    # url = urlparse(url)
-    # url = url._replace(
-    #     netloc='{}@{}'.format(credentials['username'], url.netloc))
-
-    # print('reformed', url.geturl())
+    os.environ['GIT_USERNAME'] = credentials['username']
+    os.environ['GIT_PASSWORD'] = credentials['password']
 
     return git.Repo.clone_from(url, path)
 
