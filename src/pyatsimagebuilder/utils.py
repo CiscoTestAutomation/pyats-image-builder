@@ -86,11 +86,33 @@ def git_clone(url,
 
 
 def clone_with_credentials(url, path, credentials):
-    from urllib.parse import urlparse
-    url = urlparse(url)
-    url = url._replace(netloc='{}:{}@{}'.format(
-        credentials['username'], credentials['password'], url.netloc))
-    return git.Repo.clone_from(url.geturl(), path)
+
+    GIT_ASKPASS_old = os.environ.get('GIT_ASKPASS', None)
+    GIT_USERNAME_old = os.environ.get('GIT_USERNAME', None)
+    GIT_PASSWORD_old = os.environ.get('GIT_PASSWORD', None)
+
+    os.environ['GIT_ASKPASS'] = "pyats-image-build-askpass"
+    os.environ['GIT_USERNAME'] = credentials['username']
+    os.environ['GIT_PASSWORD'] = credentials['password']
+
+    repo = git.Repo.clone_from(url, path)
+
+    if GIT_ASKPASS_old:
+        os.environ['GIT_ASKPASS'] = GIT_ASKPASS_old
+    else:
+        del os.environ['GIT_ASKPASS']
+
+    if GIT_USERNAME_old:
+        os.environ['GIT_USERNAME'] = GIT_USERNAME_old
+    else:
+        del os.environ['GIT_USERNAME']
+
+    if GIT_PASSWORD_old:
+        os.environ['GIT_PASSWORD'] = GIT_PASSWORD_old
+    else:
+        del os.environ['GIT_PASSWORD']
+
+    return repo
 
 
 def clone_with_ssh(url, path, ssh_key):

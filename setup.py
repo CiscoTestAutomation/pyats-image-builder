@@ -64,7 +64,8 @@ setup(
     # console entry point
     entry_points = {
         'console_scripts': [
-                'pyats-image-build = pyatsimagebuilder.main:main'],
+                'pyats-image-build = pyatsimagebuilder.main:main',
+                'pyats-image-build-askpass = pyatsimagebuilder.askpass:main'],
         'pyats.cli.commands': [
                 'image = pyatsimagebuilder.commands:ImageCommand'],
     },
