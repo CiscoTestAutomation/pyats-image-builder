@@ -102,15 +102,20 @@ def clone_with_credentials(url, path, credentials):
 
     if GIT_ASKPASS_old:
         os.environ['GIT_ASKPASS'] = GIT_ASKPASS_old
+    else:
+        del os.environ['GIT_ASKPASS']
 
     if GIT_USERNAME_old:
         os.environ['GIT_USERNAME'] = GIT_USERNAME_old
+    else:
+        del os.environ['GIT_USERNAME']
 
     if GIT_PASSWORD_old:
         os.environ['GIT_PASSWORD'] = GIT_PASSWORD_old
+    else:
+        del os.environ['GIT_PASSWORD']
 
     return repo
-
 
 def clone_with_ssh(url, path, ssh_key):
 
