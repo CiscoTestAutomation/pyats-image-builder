@@ -8,7 +8,6 @@ import pathlib
 import subprocess
 import os
 import tempfile
-from urllib.parse import urlparse
 
 PYATS_ANCHOR = 'PYATS_JOBFILE'
 
