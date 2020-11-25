@@ -88,13 +88,11 @@ def git_clone(url,
 
 def clone_with_credentials(url, path, credentials):
 
-    project_dir = os.path.dirname(os.path.abspath(__file__))
-
     GIT_ASKPASS_old = os.environ.get('GIT_ASKPASS', None)
     GIT_USERNAME_old = os.environ.get('GIT_USERNAME', None)
     GIT_PASSWORD_old = os.environ.get('GIT_PASSWORD', None)
 
-    os.environ['GIT_ASKPASS'] = os.path.join(project_dir, 'askpass.py')
+    os.environ['GIT_ASKPASS'] = "pyats-image-build-askpass"
     os.environ['GIT_USERNAME'] = credentials['username']
     os.environ['GIT_PASSWORD'] = credentials['password']
 
@@ -116,6 +114,7 @@ def clone_with_credentials(url, path, credentials):
         del os.environ['GIT_PASSWORD']
 
     return repo
+
 
 def clone_with_ssh(url, path, ssh_key):
 
