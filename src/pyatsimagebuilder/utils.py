@@ -58,8 +58,14 @@ def git_clone(url,
               commit_id=None,
               rm_git=False,
               credentials=None,
-              ssh_key=None):
+              ssh_key=None,
+              GIT_SSL_NO_VERIFY=False):
     # Clone the repo
+
+    GIT_SSL_NO_VERIFY_old = os.environ.get('GIT_SSL_NO_VERIFY', None)
+
+    if GIT_SSL_NO_VERIFY:
+        os.environ['GIT_SSL_NO_VERIFY'] = 'true'
 
     if credentials:
         # https git credentials provided
@@ -74,6 +80,11 @@ def git_clone(url,
     if commit_id:
         # If given a commit_id (could be a branch), switch to it
         repo.git.checkout(commit_id)
+
+    if GIT_SSL_NO_VERIFY_old:
+        os.environ['GIT_SSL_NO_VERIFY'] = GIT_SSL_NO_VERIFY_old
+    elif GIT_SSL_NO_VERIFY:
+        del os.environ['GIT_SSL_NO_VERIFY']
 
     # Get the hexsha of the current commit
     hexsha = repo.head.commit.hexsha

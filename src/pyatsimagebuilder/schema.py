@@ -107,6 +107,9 @@ BUILD_SCHEMA = {
                                     'type': 'string'
                                 }
                             }
+                        },
+                        'GIT_SSL_NO_VERIFY': {
+                            'type': 'boolean'
                         }
                     }
                 }
