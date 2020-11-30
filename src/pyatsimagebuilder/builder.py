@@ -279,9 +279,11 @@ class ImageBuilder(object):
             if ssh_key:
                 vals['ssh_key'] = '*' * 8
 
+            GIT_SSL_NO_VERIFY = vals.get('GIT_SSL_NO_VERIFY', False)
+
             # Clone and checkout the repo
             git_clone(vals['url'], target, vals.get('commit_id', None), True,
-                      credentials, ssh_key)
+                      credentials, ssh_key, GIT_SSL_NO_VERIFY)
 
             # clone repo's requirements-txt file
             if vals.get('requirements_file', False) is True:
