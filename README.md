@@ -298,8 +298,8 @@ cloned to the provided name under `/workspace`. However, you may also specify a
 new subdirectory to home it in.
 
 If your repository is private you may provide the credentials or ssh_key to gain
-access. You can also avoid including these private details in the yaml by
-passing them through environment variable. Check the ```Yaml loader``` section for
+access. You may also avoid including these private details in the yaml by
+passing them through host environment variable. Check the ```Yaml loader``` section for
 more details.
 
 ```yaml
@@ -329,8 +329,9 @@ repositories:
 #### `yaml loader`
 
 Host environment variables to be loaded into the build yaml. This provides a way
-to dynamically substitute variables into yaml. The variables loaded will not be
-saved in the resulting yaml. This is an effective way to store and save yaml files.
+to dynamically substitute variables into the yaml without saving them
+in the resulting yaml. This is an effective way to store and save secrets in
+yaml files.
 
 For example, a substitution of ssh key to a repository:
 
