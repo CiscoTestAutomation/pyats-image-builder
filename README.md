@@ -329,7 +329,7 @@ repositories:
 #### `yaml loader`
 
 Host environment variables to be loaded into the build yaml. This provides a way
-to dynamically substitube varaibles in the yaml. The variables loaded will not be
+to dynamically substitute variables into yaml. The variables loaded will not be
 saved in the resulting yaml. This is an effective way to store and save yaml files.
 
 For example, a substitution of ssh key to a repository:
