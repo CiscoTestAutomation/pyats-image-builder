@@ -297,6 +297,11 @@ Git repositories to clone to this docker image. By default, each repo will be
 cloned to the provided name under `/workspace`. However, you may also specify a
 new subdirectory to home it in.
 
+If your repository is private you may provide the credentials or ssh_key to gain
+access. You can also avoid including these private details in the yaml by
+passing them through environment variable. Check the ```Yaml loader``` section for
+more details.
+
 ```yaml
 # Format
 
@@ -310,19 +315,39 @@ repositories:
     #   equivalent to: git clone https://github.com/CiscoTestAutomation/examples /workspace/examples
     examples:
         url: https://github.com/CiscoTestAutomation/examples
+        ssh_key: <id_rsa file contents>
 
     #   equivalent to: mkdir -p /workspace/solutions; git clone https://github.com/CiscoTestAutomation/examples /workspace/solutions/examples
     solutions/examples:
         url: https://github.com/CiscoTestAutomation/solution_examples
+        credentials:
+            username: <git username>
+            password: <git password>
 
 ```
 
-Note that your build user must have the ability to clone the listed git
-repositories without any password input. The are instructions for
-[GitHub](https://help.github.com/en/github/authenticating-to-github/generating-a-new-ssh-key-and-adding-it-to-the-ssh-agent)
-and
-[Bitbucket](https://confluence.atlassian.com/bitbucket/set-up-an-ssh-key-728138079.html)
-on how to set up passwordless-ssh for git.
+#### `yaml loader`
+
+Host environment variables to be loaded into the build yaml. This provides a way
+to dynamically substitube varaibles in the yaml. The variables loaded will not be
+saved in the resulting yaml. This is an effective way to store and save yaml files.
+
+For example, a substitution of ssh key to a repository:
+
+```text
+export example_ssh_key=<private_ssh_key>
+```
+
+```yaml
+
+# Example:
+repositories:
+    examples:
+        url: https://github.com/CiscoTestAutomation/examples
+        ssh_key: '%ENV{ example_ssh_key }'
+
+
+```
 
 
 #### `jobfiles`
