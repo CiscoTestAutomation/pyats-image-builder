@@ -300,7 +300,7 @@ new subdirectory to home it in.
 If your repository is private you may provide the credentials or ssh_key to gain
 access. You may also avoid including these private details in the yaml by
 passing them through host environment variable. Check the ```Yaml loader``` section for
-more details.
+more details. Once the image is built, it will remove the login information.
 
 ```yaml
 # Format
@@ -329,9 +329,7 @@ repositories:
 #### `yaml loader`
 
 Host environment variables to be loaded into the build yaml. This provides a way
-to dynamically substitute variables into the yaml without saving them
-in the resulting yaml. This is an effective way to store and save secrets in
-yaml files.
+to dynamically substitute variables into the yaml.
 
 For example, a substitution of ssh key to a repository:
 
