@@ -9,7 +9,7 @@ JINJA2_ENV = Environment(loader=FileSystemLoader(os.path.dirname(__file__)),
 DEFAULT_BASE_IMAGE = 'python'
 DEFAULT_BASE_IMAGE_LABEL = '3.7.9-slim'
 DEFAULT_TINI_VERSION = '0.18.0'
-DEFAULT_WORKSPACE_NAME = 'pyats'
+DEFAULT_WORKSPACE_NAME = 'workspace'
 
 DOCKERIMAGE_TEMPLATE = 'Dockerfile.template'
 
