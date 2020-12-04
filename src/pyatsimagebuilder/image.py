@@ -43,8 +43,6 @@ class Image(object):
         self.pre_pip_cmds = pre_pip_cmds
         self.post_pip_cmds = post_pip_cmds
 
-        self.system_link = None if self.workspace_dir == '/pyats' else 'ln -s {workspace} /pyats'.format(workspace=self.workspace_dir)
-
 
     def manifest(self):
         return self._template.render(image=self)

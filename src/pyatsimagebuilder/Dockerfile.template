@@ -20,8 +20,6 @@ RUN apt-get update \
 
 WORKDIR ${WORKSPACE}
 
-
-
 {% if image.env -%}
     # environment variables
     {% for item in image.env -%}
