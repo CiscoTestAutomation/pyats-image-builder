@@ -9,7 +9,7 @@ JINJA2_ENV = Environment(loader=FileSystemLoader(os.path.dirname(__file__)),
 DEFAULT_BASE_IMAGE = 'python'
 DEFAULT_BASE_IMAGE_LABEL = '3.7.9-slim'
 DEFAULT_TINI_VERSION = '0.18.0'
-DEFAULT_WORKSPACE_NAME = 'workspace'
+DEFAULT_WORKSPACE_NAME = 'pyats'
 
 DOCKERIMAGE_TEMPLATE = 'Dockerfile.template'
 
@@ -42,6 +42,7 @@ class Image(object):
         # commands to run before/after pip installation
         self.pre_pip_cmds = pre_pip_cmds
         self.post_pip_cmds = post_pip_cmds
+
 
     def manifest(self):
         return self._template.render(image=self)

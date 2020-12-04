@@ -46,4 +46,8 @@ RUN for req in `ls ${WORKSPACE}/installation/requirements/*.txt | sort -V`; do \
 {{ image.post_pip_cmds }}
 {%- endif %}
 
+{% if image.workspace_dir != '/workspace' -%}
+    RUN ln -s {{ image.workspace_dir }} /workspace 
+{%- endif %}
+
 ENTRYPOINT ["/bin/tini", "--", "{{ image.workspace_dir }}/installation/entrypoint.sh"]
