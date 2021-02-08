@@ -26,6 +26,8 @@ DEFAULT_JOB_REGEXES = [
     r'.*job.*\.py',
 ]
 ENV_PATTERN = re.compile(r'(%ENV{ *([0-9a-zA-Z\_]+) *})')
+IMAGE_BUILD_SUCCESSUL = \
+    re.compile(r' *Successfully built (?P<image_id>[a-z0-9]{12})')
 
 
 class ImageBuilder(object):
@@ -427,12 +429,6 @@ class ImageBuilder(object):
                               decode=True,
                               nocache=no_cache):
 
-            # Log stream from build
-            if 'stream' in line:
-                contents = line['stream'].rstrip()
-                if contents:
-                    self._logger.debug(contents)
-
             # If we encounter an error, capture it
             if 'errorDetail' in line:
                 build_error.append(line['errorDetail']['message'])
@@ -440,6 +436,18 @@ class ImageBuilder(object):
             # retrieve image ID
             if 'aux' in line and 'ID' in line['aux']:
                 self.image.id = line['aux']['ID']
+
+            # Log stream from build
+            if 'stream' in line:
+                contents = line['stream'].rstrip()
+                if contents:
+                    self._logger.debug(contents)
+
+                # retrive image ID in steam log
+                if not self.image.id:
+                    match = IMAGE_BUILD_SUCCESSUL.search(contents)
+                    if match:
+                        self.image.id = match.group('image_id')
 
         api.close()
 
