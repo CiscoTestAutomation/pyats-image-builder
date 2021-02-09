@@ -1,30 +1,32 @@
 FROM {{ image.base_image }}:{{ image.base_image_label }}
 
 LABEL support "pyats-support-ext@cisco.com"
+LABEL pyats "pyats-image-builder"
+
 
 ENV TINI_VERSION={{ image.tini_version }}
 ENV WORKSPACE={{ image.workspace_dir }}
 
 RUN apt-get update \
- && apt-get install -y --no-install-recommends iputils-ping telnet openssh-client curl build-essential \
- && curl -fsSL https://github.com/krallin/tini/releases/download/v${TINI_VERSION}/tini-static-amd64 -o /bin/tini \
- && chmod +x /bin/tini \
- && pip3 install --upgrade --no-cache-dir setuptools pip virtualenv \
- && virtualenv ${WORKSPACE} \
- && ${WORKSPACE}/bin/pip install --no-cache-dir psutil \
- && apt-get remove -y curl build-essential \
- && apt-get autoremove -y \
- && apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false \
- && apt-get clean \
- && rm -rf /var/lib/apt/lists/*
+    && apt-get install -y --no-install-recommends iputils-ping telnet openssh-client curl build-essential \
+    && curl -fsSL https://github.com/krallin/tini/releases/download/v${TINI_VERSION}/tini-static-amd64 -o /bin/tini \
+    && chmod +x /bin/tini \
+    && pip3 install --upgrade --no-cache-dir setuptools pip virtualenv \
+    && virtualenv ${WORKSPACE} \
+    && ${WORKSPACE}/bin/pip install --no-cache-dir psutil \
+    && apt-get remove -y curl build-essential \
+    && apt-get autoremove -y \
+    && apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR ${WORKSPACE}
 
 {% if image.env -%}
-    # environment variables
-    {% for item in image.env -%}
-        ENV {{ item }}={{ image.env[item] }}
-    {% endfor %}
+# environment variables
+{% for item in image.env -%}
+ENV {{ item }}={{ image.env[item] }}
+{% endfor %}
 {% endif %}
 
 # copy build context (builk of image content) to workspace directory
@@ -38,8 +40,8 @@ COPY . ${WORKSPACE}
 RUN for req in `ls ${WORKSPACE}/installation/requirements/*.txt | sort -V`; do \
     echo "\nInstalling: $req\n--------------------------------------------"; \
     ${WORKSPACE}/bin/pip install --disable-pip-version-check \
-                                 --no-cache-dir \
-                                 --requirement $req ; done;
+    --no-cache-dir \
+    --requirement $req ; done;
 
 {% if image.post_pip_cmds -%}
 # custom commands to run after pip install
@@ -47,7 +49,7 @@ RUN for req in `ls ${WORKSPACE}/installation/requirements/*.txt | sort -V`; do \
 {%- endif %}
 
 {% if image.workspace_dir != '/workspace' -%}
-    RUN ln -s {{ image.workspace_dir }} /workspace 
+RUN ln -s {{ image.workspace_dir }} /workspace
 {%- endif %}
 
 ENTRYPOINT ["/bin/tini", "--", "{{ image.workspace_dir }}/installation/entrypoint.sh"]
