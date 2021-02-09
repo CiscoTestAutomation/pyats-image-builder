@@ -27,7 +27,7 @@ DEFAULT_JOB_REGEXES = [
 ]
 ENV_PATTERN = re.compile(r'(%ENV{ *([0-9a-zA-Z\_]+) *})')
 IMAGE_BUILD_SUCCESSUL = \
-    re.compile(r' *Successfully built (?P<image_id>[a-z0-9]{12})')
+    re.compile(r' *Successfully built (?P<image_id>[a-z0-9]{12}) *$')
 
 
 class ImageBuilder(object):
@@ -444,10 +444,9 @@ class ImageBuilder(object):
                     self._logger.debug(contents)
 
                 # retrive image ID in steam log
-                if not self.image.id:
-                    match = IMAGE_BUILD_SUCCESSUL.search(contents)
-                    if match:
-                        self.image.id = match.group('image_id')
+                match = IMAGE_BUILD_SUCCESSUL.search(contents)
+                if match:
+                    self.image.id = match.group('image_id')
 
         api.close()
 
