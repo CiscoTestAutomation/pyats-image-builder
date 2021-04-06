@@ -7,7 +7,7 @@ LABEL pyats "pyats-image-builder"
 ENV TINI_VERSION={{ image.tini_version }}
 ENV WORKSPACE={{ image.workspace_dir }}
 
-RUN apt-get update  \
+RUN apt-get -o Acquire::Check-Valid-Until=false -o Acquire::Check-Date=false update  \
     && apt-get install -y --no-install-recommends iputils-ping telnet openssh-client curl build-essential \
     && curl -fsSL https://github.com/krallin/tini/releases/download/v${TINI_VERSION}/tini-static-amd64 -o /bin/tini \
     && chmod +x /bin/tini \
