@@ -25,6 +25,8 @@ REQUIREMENTS_FILE = 'requirements.txt'
 DEFAULT_JOB_REGEXES = [
     r'.*job.*\.py',
 ]
+MANIFEST_REGEX = [r'.*\.tem']
+MANIFEST_VERSION = 1
 ENV_PATTERN = re.compile(r'(%ENV{ *([0-9a-zA-Z\_]+) *})')
 IMAGE_BUILD_SUCCESSUL = \
     re.compile(r' *Successfully built (?P<image_id>[a-z0-9]{12}) *$')
@@ -150,6 +152,9 @@ class ImageBuilder(object):
         # job discovery
         if 'jobfiles' in self.config:
             self._discover_jobs(self.config['jobfiles'])
+
+        # manifest discovery
+        self._discover_manifests()
 
         # Write formatted Dockerfile in context
         self._logger.info('Writing formatted Dockerfile')
@@ -367,6 +372,48 @@ class ImageBuilder(object):
             # ensure format is valid, but leave the contents to pip
             confparse.read_string(config)
             self.context.write_file(PIP_CONF_FILE, config)
+
+    def _discover_manifests(self):
+        self._logger.info('Discovering Manifests')
+
+        discovered_manifests = self.context.search_regex(
+            MANIFEST_REGEX, [INSTALLATION])
+
+        # Generate single manifest structure linking the files to the data
+        jobs = []
+        for manifest in discovered_manifests:
+            with open(manifest) as f:
+                manifest_data = yaml.safe_load(f.read())
+            manifest_data['file'] = str(pathlib.PurePath(manifest).relative_to(self.context.path))
+            manifest_data['run_type'] = 'manifest'
+            manifest_data['job_type'] = manifest_data.pop('type')
+
+            # Convert profiles from hierarchical dict to list of dict
+            profiles = manifest_data.pop('profiles', {})
+            manifest_data['profiles'] = []
+            for profile_name in profiles:
+                manifest_data['profiles'].append(profiles[profile_name])
+                manifest_data['profiles'][-1]['name'] = profile_name
+
+            # Convert runtimes from hierarchical dict to list of dict
+            runtimes = manifest_data.pop('runtimes', {})
+            manifest_data['runtimes'] = []
+            for profile_name in runtimes:
+                manifest_data['runtimes'].append(runtimes[profile_name])
+                manifest_data['runtimes'][-1]['name'] = profile_name
+
+            jobs.append(manifest_data)
+
+        if jobs:
+            super_manifest = {'version': MANIFEST_VERSION,
+                              'jobs': jobs}
+
+            # write the files into a file as json
+            self.context.write_file(INSTALLATION / 'manifest.json',
+                                    json.dumps(super_manifest))
+
+        self._logger.info('Number of discovered manifest files: %s' %
+                          len(discovered_manifests))
 
     def _discover_jobs(self, jobfiles):
         self._logger.info('Discovering Jobfiles')
