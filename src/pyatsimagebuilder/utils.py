@@ -1,15 +1,28 @@
-import re
 import ssl
 import git
-import glob
 import shutil
 import ftplib
 import pathlib
 import subprocess
 import os
 import tempfile
+import logging
+import json
+import yaml
+import sys
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+logger.addHandler(logging.StreamHandler(sys.stdout))
+
 
 PYATS_ANCHOR = 'PYATS_JOBFILE'
+
+DEFAULT_JOB_REGEXES = [
+    r'.*job.*\.py',
+]
+MANIFEST_REGEX = [r'.*\.tem']
+MANIFEST_VERSION = 1
 
 
 def copy(fro, to):
@@ -204,3 +217,118 @@ def is_pyats_job(job_file):
     except:
         return False
     return False
+
+
+def to_image_path(path, context, workspace_dir):
+    '''
+    returns the relative path within image workspace
+
+    Arguments:
+        path (str): Path to convert
+        context (Context): container build context
+        workspace_dir (str): workspace directory
+    '''
+
+    context_path = str(context.path)
+    path = str(path)
+
+    if path.startswith('${WORKSPACE}'):
+        path = path.replace('${WORKSPACE}', workspace_dir)
+    elif path.startswith('$WORKSPACE'):
+        path = path.replace('$WORKSPACE', workspace_dir)
+    elif path.startswith(context_path):
+        path = path.replace(context_path, workspace_dir)
+
+    return path
+
+
+def discover_jobs(jobfiles, context, install_dir, workspace_dir):
+    """ Discover job files based on regex
+
+    Arguments:
+        jobfiles (dict): Dict of jobfiles config
+        context (Context): container build context
+        install_dir (Path): installation directory
+        workspace_dir (str): image workspace directory
+    """
+    logger.info('Discovering Jobfiles')
+
+    jobfiles.setdefault('match', DEFAULT_JOB_REGEXES)
+
+    # 1. find all the job files in context by regex pattern
+    discovered_jobs = context.search_regex(jobfiles['match'], [
+        install_dir,
+    ])
+
+    # 2. find all job files by glob
+    for pattern in jobfiles.get('glob', []):
+        discovered_jobs.extend(context.search_glob(pattern))
+
+    # 3. find all job files by specificy paths
+    for path in jobfiles.get('paths', []):
+        path = context.path / path
+
+        if path.exists() and path.is_file():
+            discovered_jobs.append(path)
+
+    # 4. discover all files that are pyats job by marker
+    discovered_jobs.extend(
+        filter(is_pyats_job, context.search_glob('*.py')))
+
+    # sort and remove duplicates
+    discovered_jobs = sorted(set(discovered_jobs))
+
+    # compute path from context to image path
+    rel_job_paths = [to_image_path(i, context, workspace_dir) for i in discovered_jobs]
+
+    # write the files into a file as json
+    context.write_file(install_dir / 'jobfiles.txt', json.dumps({'jobs': rel_job_paths}))
+
+    logger.info('Number of discovered job files: %s' % len(rel_job_paths))
+    logger.info('List of job files written to: %s' % jobfiles)
+
+
+def discover_manifests(context, install_dir):
+    """ Discover manifest files and write manifest.json file
+
+    Arguments:
+        context (Context): container build context
+        install_dir (Path): Installation directory
+    """
+    logger.info('Discovering Manifests')
+
+    discovered_manifests = context.search_regex(
+        MANIFEST_REGEX, [install_dir])
+
+    # Generate single manifest structure linking the files to the data
+    jobs = []
+    for manifest in discovered_manifests:
+        with open(manifest) as f:
+            manifest_data = yaml.safe_load(f.read())
+        manifest_data['file'] = str(pathlib.PurePath(manifest).relative_to(context.path))
+        manifest_data['run_type'] = 'manifest'
+        manifest_data['job_type'] = manifest_data.pop('type')
+
+        # Convert profiles from hierarchical dict to list of dict
+        profiles = manifest_data.pop('profiles', {})
+        manifest_data['profiles'] = []
+        for profile_name in profiles:
+            manifest_data['profiles'].append(profiles[profile_name])
+            manifest_data['profiles'][-1]['name'] = profile_name
+
+        # Convert runtimes from hierarchical dict to list of dict
+        runtimes = manifest_data.pop('runtimes', {})
+        manifest_data['runtimes'] = []
+        for profile_name in runtimes:
+            manifest_data['runtimes'].append(runtimes[profile_name])
+            manifest_data['runtimes'][-1]['name'] = profile_name
+
+        jobs.append(manifest_data)
+
+    if jobs:
+        super_manifest = {'version': MANIFEST_VERSION, 'jobs': jobs}
+
+        # write the files into a file as json
+        context.write_file(install_dir / 'manifest.json', json.dumps(super_manifest))
+
+    logger.info('Number of discovered manifest files: %s' % len(discovered_manifests))

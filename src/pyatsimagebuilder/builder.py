@@ -1,7 +1,6 @@
 import os
 import re
 import yaml
-import json
 import docker
 import logging
 import pathlib
@@ -9,8 +8,8 @@ import requests
 import configparser
 import urllib.parse
 
-from .utils import (scp, copy, git_clone, ftp_retrieve, stringify_config_lists,
-                    is_pyats_job)
+from .utils import (scp, git_clone, ftp_retrieve, stringify_config_lists,
+                    discover_jobs, discover_manifests, to_image_path)
 
 from .image import Image
 from .schema import validate_builder_schema
@@ -22,11 +21,6 @@ PIP_CONF_FILE = 'pip.conf'
 INSTALLATION = pathlib.Path('installation')
 REQUIREMENTS = pathlib.Path('requirements')
 REQUIREMENTS_FILE = 'requirements.txt'
-DEFAULT_JOB_REGEXES = [
-    r'.*job.*\.py',
-]
-MANIFEST_REGEX = [r'.*\.tem']
-MANIFEST_VERSION = 1
 ENV_PATTERN = re.compile(r'(%ENV{ *([0-9a-zA-Z\_]+) *})')
 IMAGE_BUILD_SUCCESSUL = \
     re.compile(r' *Successfully built (?P<image_id>[a-z0-9]{12}) *$')
@@ -151,10 +145,13 @@ class ImageBuilder(object):
 
         # job discovery
         if 'jobfiles' in self.config:
-            self._discover_jobs(self.config['jobfiles'])
+            discover_jobs(self.config['jobfiles'],
+                          self.context,
+                          INSTALLATION,
+                          self.image.workspace_dir)
 
         # manifest discovery
-        self._discover_manifests()
+        discover_manifests(self.context, INSTALLATION)
 
         # Write formatted Dockerfile in context
         self._logger.info('Writing formatted Dockerfile')
@@ -306,7 +303,8 @@ class ImageBuilder(object):
         self._logger.info('Writing %s' % filename)
 
         # support for rel path and $WORKSPACE files
-        package_content = '\n'.join(self._to_image_path(i) for i in packages)
+        package_content = '\n'.join(to_image_path(
+            i, self.context, self.image.workspace_dir) for i in packages)
 
         self.context.write_file(INSTALLATION / REQUIREMENTS / filename,
                                 package_content)
@@ -337,23 +335,6 @@ class ImageBuilder(object):
         for file in requirement_files:
             self._register_requirements_file(file)
 
-    def _to_image_path(self, path):
-        '''
-        returns the relative path within image workspace
-        '''
-
-        context_path = str(self.context.path)
-        path = str(path)
-
-        if path.startswith('${WORKSPACE}'):
-            path = path.replace('${WORKSPACE}', self.image.workspace_dir)
-        elif path.startswith('$WORKSPACE'):
-            path = path.replace('$WORKSPACE', self.image.workspace_dir)
-        elif path.startswith(context_path):
-            path = path.replace(context_path, self.image.workspace_dir)
-
-        return path
-
     def _process_pip_config(self, config):
         # pip config for setting things like pypi server.
         self._logger.info('Writing %s file' % PIP_CONF_FILE)
@@ -372,88 +353,6 @@ class ImageBuilder(object):
             # ensure format is valid, but leave the contents to pip
             confparse.read_string(config)
             self.context.write_file(PIP_CONF_FILE, config)
-
-    def _discover_manifests(self):
-        self._logger.info('Discovering Manifests')
-
-        discovered_manifests = self.context.search_regex(
-            MANIFEST_REGEX, [INSTALLATION])
-
-        # Generate single manifest structure linking the files to the data
-        jobs = []
-        for manifest in discovered_manifests:
-            with open(manifest) as f:
-                manifest_data = yaml.safe_load(f.read())
-            manifest_data['file'] = str(pathlib.PurePath(manifest).relative_to(self.context.path))
-            manifest_data['run_type'] = 'manifest'
-            manifest_data['job_type'] = manifest_data.pop('type')
-
-            # Convert profiles from hierarchical dict to list of dict
-            profiles = manifest_data.pop('profiles', {})
-            manifest_data['profiles'] = []
-            for profile_name in profiles:
-                manifest_data['profiles'].append(profiles[profile_name])
-                manifest_data['profiles'][-1]['name'] = profile_name
-
-            # Convert runtimes from hierarchical dict to list of dict
-            runtimes = manifest_data.pop('runtimes', {})
-            manifest_data['runtimes'] = []
-            for profile_name in runtimes:
-                manifest_data['runtimes'].append(runtimes[profile_name])
-                manifest_data['runtimes'][-1]['name'] = profile_name
-
-            jobs.append(manifest_data)
-
-        if jobs:
-            super_manifest = {'version': MANIFEST_VERSION,
-                              'jobs': jobs}
-
-            # write the files into a file as json
-            self.context.write_file(INSTALLATION / 'manifest.json',
-                                    json.dumps(super_manifest))
-
-        self._logger.info('Number of discovered manifest files: %s' %
-                          len(discovered_manifests))
-
-    def _discover_jobs(self, jobfiles):
-        self._logger.info('Discovering Jobfiles')
-
-        jobfiles.setdefault('match', DEFAULT_JOB_REGEXES)
-
-        # 1. find all the job files in context by regex pattern
-        discovered_jobs = self.context.search_regex(jobfiles['match'], [
-            INSTALLATION,
-        ])
-
-        # 2. find all job files by glob
-        for pattern in jobfiles.get('glob', []):
-            discovered_jobs.extend(self.context.search_glob(pattern))
-
-        # 3. find all job files by specificy paths
-        for path in jobfiles.get('paths', []):
-            path = self.context.path / path
-
-            if path.exists() and path.is_file():
-                discovered_jobs.append(path)
-
-        # 4. discover all files that are pyats job by marker
-        discovered_jobs.extend(
-            filter(is_pyats_job, self.context.search_glob('*.py')))
-
-        # sort and remove duplicates
-        discovered_jobs = sorted(set(discovered_jobs))
-
-        # compute path from context to image path
-        rel_job_paths = [self._to_image_path(i) for i in discovered_jobs]
-
-        # write the files into a file as json
-        jobfiles = INSTALLATION / 'jobfiles.txt'
-        self.context.write_file(INSTALLATION / 'jobfiles.txt',
-                                json.dumps({'jobs': rel_job_paths}))
-
-        self._logger.info('Number of discovered job files: %s' %
-                          len(rel_job_paths))
-        self._logger.info('List of job files written to: %s' % jobfiles)
 
     def _build_image(self, no_cache=False):
 
