@@ -413,7 +413,7 @@ Supported keys:
 #### `cmds`
 
 Any additional docker command(s) in raw text format, to be inserted before/after
-the pip installation command in the build process. See [Dockerfile template](./src/Dockerfile)
+the pip installation command in the build process. See [Dockerfile template](./Dockerfile)
 for where the `pre_cmd` and `post_cmd` are inserted.
 
 Use cases example for `cmds` block: some packages require non-python
