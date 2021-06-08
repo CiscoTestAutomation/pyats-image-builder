@@ -19,9 +19,9 @@ logger.addHandler(logging.StreamHandler(sys.stdout))
 PYATS_ANCHOR = 'PYATS_JOBFILE'
 
 DEFAULT_JOB_REGEXES = [
-    r'.*job.*\.py',
+    r'.*job.*\.py$',
 ]
-MANIFEST_REGEX = [r'.*\.tem']
+MANIFEST_REGEX = [r'.*\.tem$']
 MANIFEST_VERSION = 1
 
 
