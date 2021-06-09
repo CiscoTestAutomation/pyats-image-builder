@@ -7,4 +7,4 @@ RUN apt-get install netcat-openbsd
 
 ADD . /pyats-image-builder
 
-RUN cd /pyats-image-builder; python3 setup.py install
+RUN cd /pyats-image-builder; make install

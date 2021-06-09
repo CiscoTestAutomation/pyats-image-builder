@@ -22,6 +22,8 @@ help:
 
 install:
 	@echo "--------------------------------------------------------------------"
+	@echo "Installing dependencies"
+	@pip install $(DEPENDENCIES)
 	@echo "Installing package"
 	@python setup.py install
 	@echo ""
