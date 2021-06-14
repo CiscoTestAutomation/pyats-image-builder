@@ -309,15 +309,34 @@ def discover_manifests(context, install_dir):
         manifest_data['run_type'] = 'manifest'
         manifest_data['job_type'] = manifest_data.pop('type')
 
-        # Convert profiles from hierarchical dict to list of dict
+        # Pop runtimes and profiles to add them back later as lists
+        runtimes = manifest_data.pop('runtimes', {})
         profiles = manifest_data.pop('profiles', {})
+
+        # Create default profile from top level arguments and system environment
+        default_arguments = manifest_data.pop('arguments')
+        default_runtime = runtimes.get('system', {})
+        default_environment = default_runtime.get('environment', {})
+        profiles['DEFAULT'] = {}
+        profiles['DEFAULT']['runtime'] = 'system'
+        profiles['DEFAULT']['arguments'] = default_arguments
+        profiles['DEFAULT']['environment'] = default_environment
+
+        # Update profiles with environment from runtimes
+        for profile_name in profiles:
+            runtime = profiles[profile_name].get('runtime', 'system')
+            if runtime in runtimes:
+                environment = runtimes[runtime].get('environment', {})
+                if environment:
+                    profiles[profile_name]['environment'] = environment
+
+        # Convert profiles from hierarchical dict to list of dict
         manifest_data['profiles'] = []
         for profile_name in profiles:
             manifest_data['profiles'].append(profiles[profile_name])
             manifest_data['profiles'][-1]['name'] = profile_name
 
         # Convert runtimes from hierarchical dict to list of dict
-        runtimes = manifest_data.pop('runtimes', {})
         manifest_data['runtimes'] = []
         for profile_name in runtimes:
             manifest_data['runtimes'].append(runtimes[profile_name])
