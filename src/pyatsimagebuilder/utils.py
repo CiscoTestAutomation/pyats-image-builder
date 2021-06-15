@@ -1,3 +1,4 @@
+import re
 import ssl
 import git
 import shutil
@@ -219,17 +220,32 @@ def is_pyats_job(job_file):
     return False
 
 
-def to_image_path(path, context, workspace_dir):
+def search_regex(regexes, path, ignore_folders=[]):
+        regexes = [re.compile(regex) for regex in regexes]
+        ignore_folders = [path / i for i in ignore_folders]
+
+        match = []
+
+        for file in path.rglob('*'):
+            if any(i in file.parents for i in ignore_folders):
+                continue
+            if any(regex.match(file.name) for regex in regexes):
+                match.append(file)
+
+        return match
+
+
+def to_image_path(path, context_path, workspace_dir):
     '''
-    returns the relative path within image workspace
+    returns the path within image workspace
 
     Arguments:
         path (str): Path to convert
-        context (Context): container build context
+        context_path (str): context.path
         workspace_dir (str): workspace directory
     '''
 
-    context_path = str(context.path)
+    context_path = str(context_path)
     path = str(path)
 
     if path.startswith('${WORKSPACE}'):
@@ -242,70 +258,85 @@ def to_image_path(path, context, workspace_dir):
     return path
 
 
-def discover_jobs(jobfiles, context, install_dir, workspace_dir):
+def discover_jobs(jobfiles, 
+                  context_path, 
+                  install_dir, 
+                  workspace_dir, 
+                  relative_path=True):
     """ Discover job files based on regex
 
     Arguments:
         jobfiles (dict): Dict of jobfiles config
-        context (Context): container build context
+        context (Path): context.path
         install_dir (Path): installation directory
         workspace_dir (str): image workspace directory
+        relative_path (bool): To enable path trimming or not; Default to True
     """
     logger.info('Discovering Jobfiles')
 
     jobfiles.setdefault('match', DEFAULT_JOB_REGEXES)
 
     # 1. find all the job files in context by regex pattern
-    discovered_jobs = context.search_regex(jobfiles['match'], [
-        install_dir,
-    ])
+    discovered_jobs = search_regex(jobfiles['match'], 
+                                   context_path, 
+                                   [install_dir])
 
     # 2. find all job files by glob
     for pattern in jobfiles.get('glob', []):
-        discovered_jobs.extend(context.search_glob(pattern))
+        discovered_jobs.extend(context_path.rglob(pattern))
 
     # 3. find all job files by specificy paths
     for path in jobfiles.get('paths', []):
-        path = context.path / path
+        path = context_path / path
 
         if path.exists() and path.is_file():
             discovered_jobs.append(path)
 
     # 4. discover all files that are pyats job by marker
     discovered_jobs.extend(
-        filter(is_pyats_job, context.search_glob('*.py')))
+        filter(is_pyats_job, context_path.rglob('*.py')))
 
     # sort and remove duplicates
     discovered_jobs = sorted(set(discovered_jobs))
 
-    # compute path from context to image path
-    rel_job_paths = [to_image_path(i, context, workspace_dir) for i in discovered_jobs]
+    if relative_path:
+        # compute path from context to image path
+        job_paths = [to_image_path(i, 
+                                context_path, 
+                                workspace_dir) for i in discovered_jobs]
+    else:
+        job_paths = [str(i) for i in discovered_jobs]
 
-    # write the files into a file as json
-    context.write_file(install_dir / 'jobfiles.txt', json.dumps({'jobs': rel_job_paths}))
+    with open(install_dir / 'jobfiles.txt', 'w') as f:
+        json.dump({'jobs': job_paths}, f)
 
-    logger.info('Number of discovered job files: %s' % len(rel_job_paths))
+    logger.info('Number of discovered job files: %s' % len(job_paths))
     logger.info('List of job files written to: %s' % jobfiles)
 
 
-def discover_manifests(context, install_dir):
+def discover_manifests(path, install_dir, relative_path=True):
     """ Discover manifest files and write manifest.json file
 
     Arguments:
-        context (Context): container build context
+        path (Path): context.path
         install_dir (Path): Installation directory
+        relative_path (bool): To enable path trimming or not; Default to True
     """
     logger.info('Discovering Manifests')
 
-    discovered_manifests = context.search_regex(
-        MANIFEST_REGEX, [install_dir])
+    discovered_manifests = search_regex(MANIFEST_REGEX, path, [install_dir])
 
     # Generate single manifest structure linking the files to the data
     jobs = []
     for manifest in discovered_manifests:
         with open(manifest) as f:
             manifest_data = yaml.safe_load(f.read())
-        manifest_data['file'] = str(pathlib.PurePath(manifest).relative_to(context.path))
+
+        if relative_path:
+            manifest_data['file'] = str(pathlib.PurePath(manifest).relative_to(path))
+        else:
+            manifest_data['file'] = str(path / pathlib.PurePath(manifest))
+
         manifest_data['run_type'] = 'manifest'
         manifest_data['job_type'] = manifest_data.pop('type')
 
@@ -327,8 +358,9 @@ def discover_manifests(context, install_dir):
 
     if jobs:
         super_manifest = {'version': MANIFEST_VERSION, 'jobs': jobs}
+        
+        with open(install_dir / 'manifest.json', 'w') as f:
+            json.dump(super_manifest, f)
 
-        # write the files into a file as json
-        context.write_file(install_dir / 'manifest.json', json.dumps(super_manifest))
-
-    logger.info('Number of discovered manifest files: %s' % len(discovered_manifests))
+    logger.info('Number of discovered manifest files: %s' % \
+        len(discovered_manifests))

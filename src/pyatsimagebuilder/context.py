@@ -68,20 +68,6 @@ class Context(object):
 
         self._logger.info('Setting up Docker context in %s' % self.path)
 
-    def search_regex(self, regexes, ignore_folders=[]):
-        regexes = [re.compile(regex) for regex in regexes]
-        ignore_folders = [self.path / i for i in ignore_folders]
-
-        match = []
-
-        for file in self.path.rglob('*'):
-            if any(i in file.parents for i in ignore_folders):
-                continue
-            if any(regex.match(file.name) for regex in regexes):
-                match.append(file)
-
-        return match
-
     def search_glob(self, pattern):
         return self.path.rglob(pattern)
 
