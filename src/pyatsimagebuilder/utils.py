@@ -324,7 +324,7 @@ def discover_manifests(search_path, ignore_folders, relative_path=None):
 
     discovered_manifests = search_regex(MANIFEST_REGEX, 
                                         search_path, 
-                                        ignore_folders)
+                                        ignore_folders=ignore_folders)
 
     # Generate single manifest structure linking the files to the data
     jobs = []

@@ -1,6 +1,7 @@
 import os
 import re
 import yaml
+import json
 import docker
 import logging
 import pathlib
@@ -9,7 +10,8 @@ import configparser
 import urllib.parse
 
 from .utils import (scp, git_clone, ftp_retrieve, stringify_config_lists,
-                    discover_jobs, discover_manifests, to_image_path)
+                    discover_jobs, discover_manifests, to_image_path, 
+                    search_regex)
 
 from .image import Image
 from .schema import validate_builder_schema
@@ -145,13 +147,21 @@ class ImageBuilder(object):
 
         # job discovery
         if 'jobfiles' in self.config:
-            discover_jobs(self.config['jobfiles'],
-                          self.context,
-                          INSTALLATION,
-                          self.image.workspace_dir)
+            job_paths = discover_jobs(self.config['jobfiles'],
+                                      self.context.path,
+                                      [INSTALLATION],
+                                      self.image.workspace_dir)
+            
+            # write the files into a file as json
+            self.context.write_file(INSTALLATION / 'jobfiles.txt', 
+                                    json.dumps({'jobs': job_paths}))
 
         # manifest discovery
-        discover_manifests(self.context, INSTALLATION)
+        super_manifest = discover_manifests(self.context.path, [INSTALLATION])
+        
+        # write the files into a file as json
+        self.context.write_file(INSTALLATION / 'manifest.json', 
+                                json.dumps(super_manifest))
 
         # Write formatted Dockerfile in context
         self._logger.info('Writing formatted Dockerfile')
@@ -316,9 +326,7 @@ class ImageBuilder(object):
 
     def _discover_requirements_txt(self, config):
         # 1. find all the requirement files in context by regex pattern
-        requirement_files = self.context.search_regex(config['match'], [
-            INSTALLATION,
-        ])
+        requirement_files = search_regex(config['match'], [INSTALLATION,])
 
         # 2. find all requirement files by glob
         for pattern in config.get('glob', []):
