@@ -1,3 +1,4 @@
+import re
 import ssl
 import git
 import shutil
@@ -219,93 +220,131 @@ def is_pyats_job(job_file):
     return False
 
 
-def to_image_path(path, context, workspace_dir):
+def search_regex(regexes, path, ignore_folders=[]):
+        regexes = [re.compile(regex) for regex in regexes]
+        ignore_folders = [path / i for i in ignore_folders]
+
+        match = []
+
+        for file in path.rglob('*'):
+            if any(i in file.parents for i in ignore_folders):
+                continue
+            if any(regex.match(file.name) for regex in regexes):
+                match.append(file)
+
+        return match
+
+
+def to_image_path(path, search_path, workspace_dir):
     '''
-    returns the relative path within image workspace
+    returns the path within image workspace
 
     Arguments:
-        path (str): Path to convert
-        context (Context): container build context
+        path (Path): Path to convert
+        search_path (Path): pathlib Path object with the directory to start discovery from
         workspace_dir (str): workspace directory
     '''
 
-    context_path = str(context.path)
+    search_path = str(search_path)
     path = str(path)
+    workspace_dir = str(workspace_dir)
 
     if path.startswith('${WORKSPACE}'):
         path = path.replace('${WORKSPACE}', workspace_dir)
     elif path.startswith('$WORKSPACE'):
         path = path.replace('$WORKSPACE', workspace_dir)
-    elif path.startswith(context_path):
-        path = path.replace(context_path, workspace_dir)
+    elif path.startswith(search_path):
+        path = path.replace(search_path, workspace_dir)
 
     return path
 
 
-def discover_jobs(jobfiles, context, install_dir, workspace_dir):
+def discover_jobs(jobfiles, 
+                  search_path, 
+                  ignore_folders=None, 
+                  relative_path=None):
     """ Discover job files based on regex
 
     Arguments:
         jobfiles (dict): Dict of jobfiles config
-        context (Context): container build context
-        install_dir (Path): installation directory
-        workspace_dir (str): image workspace directory
+        search_path (Path): pathlib Path object with the directory to start discovery from
+        ignore_folders (list): list of strings with directories being excluded from searching
+        relative_path (str): String with the directory search results will be relative to
     """
     logger.info('Discovering Jobfiles')
+    
+    if not ignore_folders:
+        ignore_folders = []
 
     jobfiles.setdefault('match', DEFAULT_JOB_REGEXES)
 
     # 1. find all the job files in context by regex pattern
-    discovered_jobs = context.search_regex(jobfiles['match'], [
-        install_dir,
-    ])
+    discovered_jobs = search_regex(jobfiles['match'], 
+                                   search_path, 
+                                   ignore_folders=ignore_folders)
 
     # 2. find all job files by glob
     for pattern in jobfiles.get('glob', []):
-        discovered_jobs.extend(context.search_glob(pattern))
+        discovered_jobs.extend(search_path.rglob(pattern))
 
     # 3. find all job files by specificy paths
     for path in jobfiles.get('paths', []):
-        path = context.path / path
+        path = search_path / path
 
         if path.exists() and path.is_file():
             discovered_jobs.append(path)
 
     # 4. discover all files that are pyats job by marker
     discovered_jobs.extend(
-        filter(is_pyats_job, context.search_glob('*.py')))
+        filter(is_pyats_job, search_path.rglob('*.py')))
 
     # sort and remove duplicates
     discovered_jobs = sorted(set(discovered_jobs))
 
-    # compute path from context to image path
-    rel_job_paths = [to_image_path(i, context, workspace_dir) for i in discovered_jobs]
+    if relative_path:
+        # compute path from context to image path
+        job_paths = [to_image_path(i, 
+                                   search_path, 
+                                   relative_path) for i in discovered_jobs]
+    else:
+        job_paths = [str(i) for i in discovered_jobs]
 
-    # write the files into a file as json
-    context.write_file(install_dir / 'jobfiles.txt', json.dumps({'jobs': rel_job_paths}))
-
-    logger.info('Number of discovered job files: %s' % len(rel_job_paths))
+    logger.info('Number of discovered job files: %s' % len(job_paths))
     logger.info('List of job files written to: %s' % jobfiles)
 
+    return job_paths
 
-def discover_manifests(context, install_dir):
+
+def discover_manifests(search_path, ignore_folders=None, relative_path=None):
     """ Discover manifest files and write manifest.json file
 
     Arguments:
-        context (Context): container build context
-        install_dir (Path): Installation directory
+        search_path (Path): pathlib Path object with the directory to start discovery from
+        ignore_folders (list): list of strings with directories being excluded from searching
+        relative_path (str): String with the directory search results will be relative to
     """
     logger.info('Discovering Manifests')
+    
+    if not ignore_folders:
+        ignore_folders = []
 
-    discovered_manifests = context.search_regex(
-        MANIFEST_REGEX, [install_dir])
+    discovered_manifests = search_regex(MANIFEST_REGEX, 
+                                        search_path, 
+                                        ignore_folders=ignore_folders)
 
     # Generate single manifest structure linking the files to the data
     jobs = []
     for manifest in discovered_manifests:
         with open(manifest) as f:
             manifest_data = yaml.safe_load(f.read())
-        manifest_data['file'] = str(pathlib.PurePath(manifest).relative_to(context.path))
+
+        if relative_path:
+            manifest_data['file'] = to_image_path(str(manifest), 
+                                                  search_path, 
+                                                  relative_path)
+        else:
+            manifest_data['file'] = str(manifest)
+
         manifest_data['run_type'] = 'manifest'
         manifest_data['job_type'] = manifest_data.pop('type')
 
@@ -328,7 +367,7 @@ def discover_manifests(context, install_dir):
     if jobs:
         super_manifest = {'version': MANIFEST_VERSION, 'jobs': jobs}
 
-        # write the files into a file as json
-        context.write_file(install_dir / 'manifest.json', json.dumps(super_manifest))
+    logger.info('Number of discovered manifest files: %s' % \
+        len(discovered_manifests))
 
-    logger.info('Number of discovered manifest files: %s' % len(discovered_manifests))
+    return super_manifest
