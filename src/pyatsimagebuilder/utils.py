@@ -261,7 +261,7 @@ def to_image_path(path, search_path, workspace_dir):
 
 def discover_jobs(jobfiles, 
                   search_path, 
-                  ignore_folders, 
+                  ignore_folders=None, 
                   relative_path=None):
     """ Discover job files based on regex
 
@@ -272,6 +272,9 @@ def discover_jobs(jobfiles,
         relative_path (str): String with the directory search results will be relative to
     """
     logger.info('Discovering Jobfiles')
+    
+    if not ignore_folders:
+        ignore_folders = []
 
     jobfiles.setdefault('match', DEFAULT_JOB_REGEXES)
 
@@ -312,7 +315,7 @@ def discover_jobs(jobfiles,
     return job_paths
 
 
-def discover_manifests(search_path, ignore_folders, relative_path=None):
+def discover_manifests(search_path, ignore_folders=None, relative_path=None):
     """ Discover manifest files and write manifest.json file
 
     Arguments:
@@ -321,6 +324,9 @@ def discover_manifests(search_path, ignore_folders, relative_path=None):
         relative_path (str): String with the directory search results will be relative to
     """
     logger.info('Discovering Manifests')
+    
+    if not ignore_folders:
+        ignore_folders = []
 
     discovered_manifests = search_regex(MANIFEST_REGEX, 
                                         search_path, 
