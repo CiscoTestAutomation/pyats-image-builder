@@ -43,7 +43,7 @@ class Context(object):
         if src.is_file():
             shutil.copy(src, dst)
         elif src.is_dir():
-            shutil.copytree(src, dst)
+            shutil.copytree(src, dst, symlinks=True)
         else:
             raise OSError('Cannot copy %s' % src)
 
