@@ -334,6 +334,8 @@ def discover_manifests(search_path, ignore_folders=None, relative_path=None):
 
     # Generate single manifest structure linking the files to the data
     jobs = []
+    super_manifest = {}
+
     for manifest in discovered_manifests:
         with open(manifest) as f:
             manifest_data = yaml.safe_load(f.read())
