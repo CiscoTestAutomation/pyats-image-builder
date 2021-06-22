@@ -368,7 +368,6 @@ def discover_manifests(search_path, ignore_folders=None, relative_path=None):
         len(discovered_manifests))
 
     if jobs:
-        super_manifest = {'version': MANIFEST_VERSION, 'jobs': jobs}
-        return super_manifest
+        return {'version': MANIFEST_VERSION, 'jobs': jobs}
     else:
         return {}
