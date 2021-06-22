@@ -334,8 +334,6 @@ def discover_manifests(search_path, ignore_folders=None, relative_path=None):
 
     # Generate single manifest structure linking the files to the data
     jobs = []
-    super_manifest = {}
-
     for manifest in discovered_manifests:
         with open(manifest) as f:
             manifest_data = yaml.safe_load(f.read())
@@ -366,10 +364,11 @@ def discover_manifests(search_path, ignore_folders=None, relative_path=None):
 
         jobs.append(manifest_data)
 
-    if jobs:
-        super_manifest = {'version': MANIFEST_VERSION, 'jobs': jobs}
-
     logger.info('Number of discovered manifest files: %s' % \
         len(discovered_manifests))
 
-    return super_manifest
+    if jobs:
+        super_manifest = {'version': MANIFEST_VERSION, 'jobs': jobs}
+        return super_manifest
+    else:
+        return {}
