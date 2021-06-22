@@ -383,10 +383,10 @@ def discover_manifests(search_path, ignore_folders=None, relative_path=None):
 
         jobs.append(manifest_data)
 
-    if jobs:
-        super_manifest = {'version': MANIFEST_VERSION, 'jobs': jobs}
-
     logger.info('Number of discovered manifest files: %s' % \
         len(discovered_manifests))
 
-    return super_manifest
+    if jobs:
+        return {'version': MANIFEST_VERSION, 'jobs': jobs}
+    else:
+        return {}

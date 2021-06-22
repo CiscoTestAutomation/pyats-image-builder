@@ -159,9 +159,10 @@ class ImageBuilder(object):
         # manifest discovery
         super_manifest = discover_manifests(self.context.path, [INSTALLATION])
         
-        # write the files into a file as json
-        self.context.write_file(INSTALLATION / 'manifest.json', 
-                                json.dumps(super_manifest))
+        if super_manifest:
+          # write the files into a file as json
+          self.context.write_file(INSTALLATION / 'manifest.json', 
+                                  json.dumps(super_manifest))
 
         # Write formatted Dockerfile in context
         self._logger.info('Writing formatted Dockerfile')
