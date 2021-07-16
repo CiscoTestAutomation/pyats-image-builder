@@ -10,7 +10,7 @@ import configparser
 import urllib.parse
 
 from .utils import (scp, git_clone, ftp_retrieve, stringify_config_lists,
-                    discover_jobs, discover_manifests, to_image_path, 
+                    discover_jobs, discover_manifests, to_image_path,
                     search_regex)
 
 from .image import Image
@@ -147,21 +147,23 @@ class ImageBuilder(object):
 
         # job discovery
         if 'jobfiles' in self.config:
-            job_paths = discover_jobs(self.config['jobfiles'],
-                                      self.context.path,
-                                      [INSTALLATION],
-                                      self.image.workspace_dir)
-            
+            job_paths = discover_jobs(jobfiles=self.config['jobfiles'],
+                                      search_path=self.context.path,
+                                      ignore_folders=[INSTALLATION],
+                                      relative_path=self.image.workspace_dir)
+
             # write the files into a file as json
-            self.context.write_file(INSTALLATION / 'jobfiles.txt', 
+            self.context.write_file(INSTALLATION / 'jobfiles.txt',
                                     json.dumps({'jobs': job_paths}))
 
         # manifest discovery
-        super_manifest = discover_manifests(self.context.path, [INSTALLATION])
-        
+        super_manifest = discover_manifests(search_path=self.context.path,
+                                            ignore_folders=[INSTALLATION],
+                                            relative_path=self.image.workspace_dir)
+
         if super_manifest:
           # write the files into a file as json
-          self.context.write_file(INSTALLATION / 'manifest.json', 
+          self.context.write_file(INSTALLATION / 'manifest.json',
                                   json.dumps(super_manifest))
 
         # Write formatted Dockerfile in context

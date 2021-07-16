@@ -259,9 +259,9 @@ def to_image_path(path, search_path, workspace_dir):
     return path
 
 
-def discover_jobs(jobfiles, 
-                  search_path, 
-                  ignore_folders=None, 
+def discover_jobs(jobfiles,
+                  search_path,
+                  ignore_folders=None,
                   relative_path=None):
     """ Discover job files based on regex
 
@@ -272,15 +272,15 @@ def discover_jobs(jobfiles,
         relative_path (str): String with the directory search results will be relative to
     """
     logger.info('Discovering Jobfiles')
-    
+
     if not ignore_folders:
         ignore_folders = []
 
     jobfiles.setdefault('match', DEFAULT_JOB_REGEXES)
 
     # 1. find all the job files in context by regex pattern
-    discovered_jobs = search_regex(jobfiles['match'], 
-                                   search_path, 
+    discovered_jobs = search_regex(jobfiles['match'],
+                                   search_path,
                                    ignore_folders=ignore_folders)
 
     # 2. find all job files by glob
@@ -303,8 +303,8 @@ def discover_jobs(jobfiles,
 
     if relative_path:
         # compute path from context to image path
-        job_paths = [to_image_path(i, 
-                                   search_path, 
+        job_paths = [to_image_path(i,
+                                   search_path,
                                    relative_path) for i in discovered_jobs]
     else:
         job_paths = [str(i) for i in discovered_jobs]
@@ -324,12 +324,12 @@ def discover_manifests(search_path, ignore_folders=None, relative_path=None):
         relative_path (str): String with the directory search results will be relative to
     """
     logger.info('Discovering Manifests')
-    
+
     if not ignore_folders:
         ignore_folders = []
 
-    discovered_manifests = search_regex(MANIFEST_REGEX, 
-                                        search_path, 
+    discovered_manifests = search_regex(MANIFEST_REGEX,
+                                        search_path,
                                         ignore_folders=ignore_folders)
 
     # Generate single manifest structure linking the files to the data
@@ -339,8 +339,8 @@ def discover_manifests(search_path, ignore_folders=None, relative_path=None):
             manifest_data = yaml.safe_load(f.read())
 
         if relative_path:
-            manifest_data['file'] = to_image_path(str(manifest), 
-                                                  search_path, 
+            manifest_data['file'] = to_image_path(str(manifest),
+                                                  search_path,
                                                   relative_path)
         else:
             manifest_data['file'] = str(manifest)
@@ -384,7 +384,7 @@ def discover_manifests(search_path, ignore_folders=None, relative_path=None):
         jobs.append(manifest_data)
 
     logger.info('Number of discovered manifest files: %s' % \
-        len(discovered_manifests))
+                len(discovered_manifests))
 
     if jobs:
         return {'version': MANIFEST_VERSION, 'jobs': jobs}
