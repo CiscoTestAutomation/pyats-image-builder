@@ -55,9 +55,9 @@ class Context(object):
             self._logger.info('[WARNING] Keeping context directory %s' %
                               self.path)
         else:
+            self._logger.info('Deleting context directory %s' % self.path)
             shutil.rmtree(str(self.path))
             self.path = None
-            self._logger.info('Deleting context directory %s' % self.path)
 
     def create(self):
         if self.path and self.path.exists():

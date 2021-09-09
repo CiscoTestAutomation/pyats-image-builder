@@ -310,7 +310,6 @@ def discover_jobs(jobfiles,
         job_paths = [str(i) for i in discovered_jobs]
 
     logger.info('Number of discovered job files: %s' % len(job_paths))
-    logger.info('List of job files written to: %s' % jobfiles)
 
     return job_paths
 
