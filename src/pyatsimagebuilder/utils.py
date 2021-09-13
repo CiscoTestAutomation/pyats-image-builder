@@ -81,11 +81,14 @@ def git_info(path, repo=None):
 
     # Get tags and heads of HEAD
     cmd = 'git tag --points-at HEAD'
-    out = subprocess.check_output(cmd, shell=True, universal_newlines=True)
+    out = subprocess.check_output(cmd, shell=True, cwd=path,
+                                  universal_newlines=True)
     tags = out.split()
 
     cmd = 'git branch --points-at HEAD'
-    out = subprocess.check_output(cmd, shell=True, universal_newlines=True)
+    out = subprocess.check_output(cmd, shell=True, cwd=path,
+                                  universal_newlines=True)
+
     heads = out.split()
     # Remove marker of current branch
     if '*' in heads:
@@ -388,7 +391,11 @@ def discover_manifests(search_path, ignore_folders=None, relative_path=None,
         repo = os.path.dirname(str(repo))
         # only add undiscovered repos
         if repo not in repo_paths:
-            repo_list.append(git_info(repo))
+            try:
+                repo_list.append(git_info(repo))
+            except Exception:
+                # problem getting git information - probably not an actual repo
+                logger.exception('Error getting git info about {}'.format(repo))
 
     # Generate single manifest structure linking the files to the data
     jobs = []
