@@ -374,7 +374,7 @@ def discover_manifests(search_path, ignore_folders=None, relative_path=None,
     discovered_repos = []
     i = 0
     while i < len(discovered_manifests):
-        if git_regex.match(discovered_manifests[i]):
+        if git_regex.match(str(discovered_manifests[i])):
             discovered_repos.append(discovered_manifests.pop(i))
         else:
             i += 1
