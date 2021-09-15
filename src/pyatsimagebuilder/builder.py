@@ -177,14 +177,16 @@ class ImageBuilder(object):
                               (INSTALLATION / 'manifest.json'))
 
         if repo_list:
-            # write list of repos into a json file
+            # write dict of repos into a json file
+            repo_data = {}
             for repo in repo_list:
                 repo['path'] = to_image_path(repo['path'],
                                              self.context.path,
                                              self.image.workspace_dir)
+                repo_data[repo['path']] = repo
 
             self.context.write_file(INSTALLATION / 'repos.json',
-                                    json.dumps(repo_list))
+                                    json.dumps(repo_data))
 
             self._logger.info('List of git repos written to: %s' %
                               (INSTALLATION / 'repos.json'))

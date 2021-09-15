@@ -406,16 +406,16 @@ def discover_manifests(search_path, ignore_folders=None, relative_path=None,
         # Find any repo containing this manifest file
         for repo in repo_list:
             if str(manifest).startswith(repo['path']):
-                manifest_data['repo'] = dict(repo)
+                manifest_data['repo_path'] = repo['path']
                 break
 
         if relative_path:
             manifest_data['file'] = to_image_path(str(manifest),
                                                   search_path,
                                                   relative_path)
-            if 'repo' in manifest_data and 'path' in manifest_data['repo']:
-                manifest_data['repo']['path'] = to_image_path(
-                    manifest_data['repo']['path'], search_path, relative_path)
+            if 'repo_path' in manifest_data:
+                manifest_data['repo_path'] = to_image_path(
+                    manifest_data['repo_path'], search_path, relative_path)
         else:
             manifest_data['file'] = str(manifest)
 
