@@ -94,7 +94,7 @@ def git_info(path, repo=None):
     if '*' in heads:
         heads.remove('*')
 
-    return {'hexsha': hexsha,
+    return {'commit': hexsha,
             'heads': heads,
             'tags': tags,
             'remotes': remotes,
