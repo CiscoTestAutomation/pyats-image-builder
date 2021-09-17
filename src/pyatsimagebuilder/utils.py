@@ -348,14 +348,14 @@ def discover_jobs(jobfiles,
 
 
 def discover_manifests(search_path, ignore_folders=None, relative_path=None,
-                       repo_list=None):
+                       repo_data=None):
     """ Discover manifest files and write manifest.json file
 
     Arguments:
         search_path (Path): pathlib Path object with the directory to start discovery from
         ignore_folders (list): list of strings with directories being excluded from searching
         relative_path (str): String with the directory search results will be relative to
-        repo_list (list): list of repositories to link to each manifest file.
+        repo_list (dict): dict of repositories to link to each manifest file.
                           Additional repos are discovered and appended to
                           this list.
     """
@@ -379,20 +379,23 @@ def discover_manifests(search_path, ignore_folders=None, relative_path=None,
         else:
             i += 1
 
-    # get paths of previously discovered repos
-    repo_paths = set()
-    if repo_list is not None:
-        repo_paths = set(r['path'] for r in repo_list)
-    else:
-        repo_list = []
+    if repo_data is None:
+        repo_data = {}
 
     for repo in discovered_repos:
         # remove /.git from path and convert from Path to str
         repo = os.path.dirname(str(repo))
+        if relative_path:
+            image_repo = to_image_path(repo, search_path, relative_path)
+        else:
+            image_repo = repo
         # only add undiscovered repos
-        if repo not in repo_paths:
+        if image_repo not in repo_data:
             try:
-                repo_list.append(git_info(repo))
+                r = git_info(repo)
+                # use corrected image path
+                r['path'] = image_repo
+                repo_data[image_repo] = r
             except Exception:
                 # problem getting git information - probably not an actual repo
                 logger.exception('Error getting git info about {}'.format(repo))
@@ -403,21 +406,18 @@ def discover_manifests(search_path, ignore_folders=None, relative_path=None,
         with open(manifest) as f:
             manifest_data = yaml.safe_load(f.read())
 
-        # Find any repo containing this manifest file
-        for repo in repo_list:
-            if str(manifest).startswith(repo['path']):
-                manifest_data['repo_path'] = repo['path']
-                break
-
         if relative_path:
             manifest_data['file'] = to_image_path(str(manifest),
                                                   search_path,
                                                   relative_path)
-            if 'repo_path' in manifest_data:
-                manifest_data['repo_path'] = to_image_path(
-                    manifest_data['repo_path'], search_path, relative_path)
         else:
             manifest_data['file'] = str(manifest)
+
+        # Find any repo containing this manifest file
+        for repo in repo_data:
+            if manifest_data['file'].startswith(repo):
+                manifest_data['repo_path'] = repo
+                break
 
         manifest_data['run_type'] = 'manifest'
         manifest_data['job_type'] = manifest_data.pop('type')

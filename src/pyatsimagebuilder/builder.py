@@ -162,11 +162,21 @@ class ImageBuilder(object):
             self._logger.info('List of job files written to: %s' %
                               (INSTALLATION / 'jobfiles.txt'))
 
+        # Convert list of repos into a dict with corrected image paths
+        # This is the format that will be written to a json file
+        repo_data = {}
+        if repo_list:
+            for repo in repo_list:
+                repo['path'] = to_image_path(repo['path'],
+                                             self.context.path,
+                                             self.image.workspace_dir)
+                repo_data[repo['path']] = repo
+
         # manifest/repo discovery
         super_manifest = discover_manifests(search_path=self.context.path,
                                             ignore_folders=[INSTALLATION],
                                             relative_path=self.image.workspace_dir,
-                                            repo_list=repo_list)
+                                            repo_data=repo_data)
 
         if super_manifest:
             # write the files into a file as json
@@ -176,15 +186,8 @@ class ImageBuilder(object):
             self._logger.info('List of manifest files written to: %s' %
                               (INSTALLATION / 'manifest.json'))
 
-        if repo_list:
+        if repo_data:
             # write dict of repos into a json file
-            repo_data = {}
-            for repo in repo_list:
-                repo['path'] = to_image_path(repo['path'],
-                                             self.context.path,
-                                             self.image.workspace_dir)
-                repo_data[repo['path']] = repo
-
             self.context.write_file(INSTALLATION / 'repos.json',
                                     json.dumps(repo_data))
 
