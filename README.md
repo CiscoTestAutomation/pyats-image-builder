@@ -495,6 +495,8 @@ structure:
     A mapping of all discovered manifest files with the contents of that file.
 ```
 
+See more about [manifest files](https://pubhub.devnetcloud.com/media/pyats/docs/manifest/index.html).
+
 # Image Build
 
 The image is built in two main stages.
