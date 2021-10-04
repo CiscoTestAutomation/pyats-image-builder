@@ -5,7 +5,7 @@ ENV TINI_VERSION=0.18.0
 ENV WORKSPACE="{workspace}"
 
 RUN apt-get update \
- && apt-get install -y --no-install-recommends iputils-ping telnet openssh-client curl build-essential \
+ && apt-get install -y --no-install-recommends iputils-ping telnet openssh-client curl build-essential net-tools \
  && curl -fsSL https://github.com/krallin/tini/releases/download/v${{TINI_VERSION}}/tini-static-amd64 -o /bin/tini \
  && chmod +x /bin/tini \
  && pip3 install --upgrade --no-cache-dir setuptools pip virtualenv \
