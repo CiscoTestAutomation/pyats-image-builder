@@ -149,12 +149,12 @@ class ImageBuilder(object):
             self._write_requirements_file(self.config['packages'])
 
         # job discovery
-        if 'jobfiles' in self.config:
-            job_paths = discover_jobs(jobfiles=self.config['jobfiles'],
-                                      search_path=self.context.path,
-                                      ignore_folders=[INSTALLATION],
-                                      relative_path=self.image.workspace_dir)
+        job_paths = discover_jobs(jobfiles=self.config.get('jobfiles', {}),
+                                  search_path=self.context.path,
+                                  ignore_folders=[INSTALLATION],
+                                  relative_path=self.image.workspace_dir)
 
+        if job_paths:
             # write the files into a file as json
             self.context.write_file(INSTALLATION / 'jobfiles.txt',
                                     json.dumps({'jobs': job_paths}))

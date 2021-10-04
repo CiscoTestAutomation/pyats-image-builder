@@ -467,24 +467,32 @@ pyATS Docker images created using this package features the following directory
 structure:
 
 ```text
-/venv
+/pyats
     Directory where the Python virtual environment is created. All Python
     packages (including pyATS) specified in the build YAML file are installed
-    into here.
+    into here. Additionally acts as the workspace, where all files and
+    repositories specified in the YAML build file gets copied to. Set as the
+    Docker working directory.
 
-/workspace
-    Location where all files and repositories specified in the YAML build
-    file gets copied to. Also set as the Docker working directory.
-
-/workspace/installation
+/pyats/installation
     Files related to the building of this docker image is stored under here.
     (for bookkeeping and debugging)
 
-/workspace/installation/build.yaml
+/pyats/installation/build.yaml
     Copy of the input build YAML file.
 
-/workspace/installation/requirements.txt
+/pyats/installation/requirements.txt
     Pip packages installed in the virtual environment in pip freeze format.
+
+/pyats/installation/repos.json
+    A mapping of all git repos in the image with the current checked out commit
+    or branch.
+
+/pyats/installation/jobfiles.txt
+    List of all discovered pyATS jobfiles in the image.
+
+/pyats/installation/manifest.json
+    A mapping of all discovered manifest files with the contents of that file.
 ```
 
 # Image Build
