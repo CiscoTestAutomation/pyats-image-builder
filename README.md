@@ -116,15 +116,15 @@ files:                          # list of files from various sources to be copie
                                 #   - remote URL
                                 # [Optional]
 
-  - /path/to/file1              # copy a localhost file to /workspace/
+  - /path/to/file1              # copy a localhost file to /pyats/
 
-  - myfile_2: /path/to/file2    # copy a localhost file to /workspace/ and renaming it
+  - myfile_2: /path/to/file2    # copy a localhost file to /pyats/ and renaming it
 
-  - dirname/file3: /path/to/file3               # copy a localhost file to /workspace/ directory
+  - dirname/file3: /path/to/file3               # copy a localhost file to /pyats/ directory
 
-  - "https://webaddress.com/path/to/file4"      # download remote file to /workspace/
+  - "https://webaddress.com/path/to/file4"      # download remote file to /pyats/
 
-  - myfile_5: "https://webaddress/path/to/file5"   # download remote file to /workspace/, and rename it
+  - myfile_5: "https://webaddress/path/to/file5"   # download remote file to /pyats/, and rename it
 
 packages:                       # List of python packages to be installed into the virtual environment
   - pyats[full]
@@ -149,8 +149,8 @@ jobfiles:                       # Additional criteria to consider in job discove
                                 # [Optional]
 
   paths:                        # list of paths to the jobfiles
-    - relative/path/to/job.py
-    - /absolute/path/to/job/in/workspace/job.py
+    - relative/path/to/job.py                       # relative path from /pyats
+    - /pyats/absolute/path/to/job.py                # absolute path to job in image
   match:                        # list of regex expressions to match python jobfiles
     - .*job.py
 
@@ -192,7 +192,7 @@ Environment variables to be defined in the image. These environment variables
 will persist in the built image - and visible in your pyATS job runs.
 
 In addition to your custom ones, the builder automatically sets environment
-variable `$WORKSPACE`, typically referring `/workspace` directory. This can be
+variable `$WORKSPACE`, typically referring `/pyats` directory. This can be
 used to dynamically reference files:
 
 ``` yaml
@@ -208,7 +208,7 @@ repositories:
 
 #### `files`
 
-Section to specify the list of files or folders to copy to `/workspace`. This
+Section to specify the list of files or folders to copy to `/pyats`. This
 section allows you to specify both localhost files and remote files to include
 in your build image, and as well give you a place to rename them on copy.
 
@@ -223,16 +223,16 @@ files:
 List entires under `files` block supports a few different input formats:
 
 - `/path/to/file`: copies a this particular file from your host system to
-  `/workspace/file`
+  `/pyats/file`
 
-- `new_name: /path/to/file`: copies + rename file, to `/workspace/new_name`
+- `new_name: /path/to/file`: copies + rename file, to `/pyats/new_name`
 
-- `new_dir/new_name: /path/to/file`: copies + rename file to `/workspace/new_dir/new_name`
+- `new_dir/new_name: /path/to/file`: copies + rename file to `/pyats/new_dir/new_name`
 
 In addition, in addition to localhost files, you can also specify remote files
 by URL scheme:
 
-- `scp://[user@]remotehost/path/to/file`: SCP this file to `/workspace/file`
+- `scp://[user@]remotehost/path/to/file`: SCP this file to `/pyats/file`
 - `ftp://remotehost:2121/path/to/file`: same as above, but this time using FTP
 - `https://webaddress/path/to/file`: same as above, using HTTPS (file-get)
 
@@ -294,7 +294,7 @@ packages:
 #### `repositories`
 
 Git repositories to clone to this docker image. By default, each repo will be
-cloned to the provided name under `/workspace`. However, you may also specify a
+cloned to the provided name under `/pyats`. However, you may also specify a
 new subdirectory to home it in.
 
 If your repository is private you may provide the credentials or ssh_key to gain
@@ -312,12 +312,12 @@ repositories:
 
 # Example:
 repositories:
-    #   equivalent to: git clone https://github.com/CiscoTestAutomation/examples /workspace/examples
+    #   equivalent to: git clone https://github.com/CiscoTestAutomation/examples /pyats/examples
     examples:
         url: https://github.com/CiscoTestAutomation/examples
         ssh_key: <id_rsa file contents>
 
-    #   equivalent to: mkdir -p /workspace/solutions; git clone https://github.com/CiscoTestAutomation/examples /workspace/solutions/examples
+    #   equivalent to: mkdir -p /pyats/solutions; git clone https://github.com/CiscoTestAutomation/examples /pyats/solutions/examples
     solutions/examples:
         url: https://github.com/CiscoTestAutomation/solution_examples
         credentials:
@@ -390,7 +390,7 @@ jobfiles:
 jobfiles:
   paths:
     - relative/path/to/job.py
-    - /workspace/path/to/job.py
+    - /pyats/path/to/job.py
   match:
     - .*job.py
     - .*example_job.py
@@ -467,25 +467,35 @@ pyATS Docker images created using this package features the following directory
 structure:
 
 ```text
-/venv
+/pyats
     Directory where the Python virtual environment is created. All Python
     packages (including pyATS) specified in the build YAML file are installed
-    into here.
+    into here. Additionally acts as the workspace, where all files and
+    repositories specified in the YAML build file gets copied to. Set as the
+    Docker working directory.
 
-/workspace
-    Location where all files and repositories specified in the YAML build
-    file gets copied to. Also set as the Docker working directory.
-
-/workspace/installation
+/pyats/installation
     Files related to the building of this docker image is stored under here.
     (for bookkeeping and debugging)
 
-/workspace/installation/build.yaml
+/pyats/installation/build.yaml
     Copy of the input build YAML file.
 
-/workspace/installation/requirements.txt
+/pyats/installation/requirements.txt
     Pip packages installed in the virtual environment in pip freeze format.
+
+/pyats/installation/repos.json
+    A mapping of all git repos in the image with the current checked out commit
+    or branch.
+
+/pyats/installation/jobfiles.txt
+    List of all discovered pyATS jobfiles in the image.
+
+/pyats/installation/manifest.json
+    A mapping of all discovered manifest files with the contents of that file.
 ```
+
+See more about [manifest files](https://pubhub.devnetcloud.com/media/pyats/docs/manifest/index.html).
 
 # Image Build
 

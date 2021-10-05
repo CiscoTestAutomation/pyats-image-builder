@@ -22,9 +22,10 @@ PYATS_ANCHOR = 'PYATS_JOBFILE'
 DEFAULT_JOB_REGEXES = [
     r'.*job.*\.py$',
 ]
-MANIFEST_REGEX = [r'.*\.tem$']
+MANIFEST_REGEX = r'.*\.tem$'
 MANIFEST_VERSION = 1
 
+GIT_REGEX = r'.*\.git$'
 
 def copy(fro, to):
     # Copy either a single file or an entire directory
@@ -67,6 +68,39 @@ def ftp_retrieve(host, from_path, to_path, port=None, secure=False):
     ftp.close()
 
 
+def git_info(path, repo=None):
+    # Get information about the given repo
+    if repo is None:
+        repo = git.Repo(path)
+
+    # Get the hexsha of the current commit
+    hexsha = repo.head.commit.hexsha
+
+    # Get remotes
+    remotes = {r.name: r.url for r in repo.remotes}
+
+    # Get tags and heads of HEAD
+    cmd = 'git tag --points-at HEAD'
+    out = subprocess.check_output(cmd, shell=True, cwd=path,
+                                  universal_newlines=True)
+    tags = out.split()
+
+    cmd = 'git branch --points-at HEAD'
+    out = subprocess.check_output(cmd, shell=True, cwd=path,
+                                  universal_newlines=True)
+
+    heads = out.split()
+    # Remove marker of current branch
+    if '*' in heads:
+        heads.remove('*')
+
+    return {'commit': hexsha,
+            'heads': heads,
+            'tags': tags,
+            'remotes': remotes,
+            'path': str(path)}
+
+
 def git_clone(url,
               path,
               commit_id=None,
@@ -100,14 +134,13 @@ def git_clone(url,
     elif GIT_SSL_NO_VERIFY:
         del os.environ['GIT_SSL_NO_VERIFY']
 
-    # Get the hexsha of the current commit
-    hexsha = repo.head.commit.hexsha
+    info = git_info(path, repo)
 
     if rm_git:
         # Delete the .git dir to save space after checking out
         shutil.rmtree(repo.git_dir)
 
-    return hexsha
+    return info
 
 
 def clone_with_credentials(url, path, credentials):
@@ -310,27 +343,62 @@ def discover_jobs(jobfiles,
         job_paths = [str(i) for i in discovered_jobs]
 
     logger.info('Number of discovered job files: %s' % len(job_paths))
-    logger.info('List of job files written to: %s' % jobfiles)
 
     return job_paths
 
 
-def discover_manifests(search_path, ignore_folders=None, relative_path=None):
+def discover_manifests(search_path, ignore_folders=None, relative_path=None,
+                       repo_data=None):
     """ Discover manifest files and write manifest.json file
 
     Arguments:
         search_path (Path): pathlib Path object with the directory to start discovery from
         ignore_folders (list): list of strings with directories being excluded from searching
         relative_path (str): String with the directory search results will be relative to
+        repo_list (dict): dict of repositories to link to each manifest file.
+                          Additional repos are discovered and appended to
+                          this list.
     """
     logger.info('Discovering Manifests')
 
     if not ignore_folders:
         ignore_folders = []
 
-    discovered_manifests = search_regex(MANIFEST_REGEX,
+    # Combine search for manifests and git repos in one recursive glob search
+    discovered_manifests = search_regex([MANIFEST_REGEX, GIT_REGEX],
                                         search_path,
                                         ignore_folders=ignore_folders)
+
+    # Separate git repos and manifests
+    git_regex = re.compile(GIT_REGEX)
+    discovered_repos = []
+    i = 0
+    while i < len(discovered_manifests):
+        if git_regex.match(str(discovered_manifests[i])):
+            discovered_repos.append(discovered_manifests.pop(i))
+        else:
+            i += 1
+
+    if repo_data is None:
+        repo_data = {}
+
+    for repo in discovered_repos:
+        # remove /.git from path and convert from Path to str
+        repo = os.path.dirname(str(repo))
+        if relative_path:
+            image_repo = to_image_path(repo, search_path, relative_path)
+        else:
+            image_repo = repo
+        # only add undiscovered repos
+        if image_repo not in repo_data:
+            try:
+                r = git_info(repo)
+                # use corrected image path
+                r['path'] = image_repo
+                repo_data[image_repo] = r
+            except Exception:
+                # problem getting git information - probably not an actual repo
+                logger.exception('Error getting git info about {}'.format(repo))
 
     # Generate single manifest structure linking the files to the data
     jobs = []
@@ -344,6 +412,12 @@ def discover_manifests(search_path, ignore_folders=None, relative_path=None):
                                                   relative_path)
         else:
             manifest_data['file'] = str(manifest)
+
+        # Find any repo containing this manifest file
+        for repo in repo_data:
+            if manifest_data['file'].startswith(repo):
+                manifest_data['repo_path'] = repo
+                break
 
         manifest_data['run_type'] = 'manifest'
         manifest_data['job_type'] = manifest_data.pop('type')

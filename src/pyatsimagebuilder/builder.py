@@ -126,11 +126,14 @@ class ImageBuilder(object):
         if 'pip-config' in self.config:
             self._process_pip_config(self.config['pip-config'])
 
+        repo_list = []
         if 'snapshot' in self.config:
-            self._process_snapshot(self.config['snapshot'])
+            repo_list.extend(
+                self._process_snapshot(self.config['snapshot']))
 
         if 'repositories' in self.config:
-            self._process_repositories(self.config['repositories'])
+            repo_list.extend(
+                self._process_repositories(self.config['repositories']))
 
         if 'files' in self.config:
             self._process_files(self.config['files'])
@@ -146,25 +149,50 @@ class ImageBuilder(object):
             self._write_requirements_file(self.config['packages'])
 
         # job discovery
-        if 'jobfiles' in self.config:
-            job_paths = discover_jobs(jobfiles=self.config['jobfiles'],
-                                      search_path=self.context.path,
-                                      ignore_folders=[INSTALLATION],
-                                      relative_path=self.image.workspace_dir)
+        job_paths = discover_jobs(jobfiles=self.config.get('jobfiles', {}),
+                                  search_path=self.context.path,
+                                  ignore_folders=[INSTALLATION],
+                                  relative_path=self.image.workspace_dir)
 
+        if job_paths:
             # write the files into a file as json
             self.context.write_file(INSTALLATION / 'jobfiles.txt',
                                     json.dumps({'jobs': job_paths}))
 
-        # manifest discovery
+            self._logger.info('List of job files written to: %s' %
+                              (INSTALLATION / 'jobfiles.txt'))
+
+        # Convert list of repos into a dict with corrected image paths
+        # This is the format that will be written to a json file
+        repo_data = {}
+        if repo_list:
+            for repo in repo_list:
+                repo['path'] = to_image_path(repo['path'],
+                                             self.context.path,
+                                             self.image.workspace_dir)
+                repo_data[repo['path']] = repo
+
+        # manifest/repo discovery
         super_manifest = discover_manifests(search_path=self.context.path,
                                             ignore_folders=[INSTALLATION],
-                                            relative_path=self.image.workspace_dir)
+                                            relative_path=self.image.workspace_dir,
+                                            repo_data=repo_data)
 
         if super_manifest:
-          # write the files into a file as json
-          self.context.write_file(INSTALLATION / 'manifest.json',
-                                  json.dumps(super_manifest))
+            # write the files into a file as json
+            self.context.write_file(INSTALLATION / 'manifest.json',
+                                    json.dumps(super_manifest))
+
+            self._logger.info('List of manifest files written to: %s' %
+                              (INSTALLATION / 'manifest.json'))
+
+        if repo_data:
+            # write dict of repos into a json file
+            self.context.write_file(INSTALLATION / 'repos.json',
+                                    json.dumps(repo_data))
+
+            self._logger.info('List of git repos written to: %s' %
+                              (INSTALLATION / 'repos.json'))
 
         # Write formatted Dockerfile in context
         self._logger.info('Writing formatted Dockerfile')
@@ -189,11 +217,14 @@ class ImageBuilder(object):
         self.context.copy(snapshot_file, INSTALLATION / 'snapshot.yaml')
 
         # process the snapshot content
+        repo_list = []
         if 'repositories' in snapshot:
-            self._process_repositories(snapshot['repositories'])
+            repo_list = self._process_repositories(snapshot['repositories'])
 
         if 'packages' in snapshot:
             self._write_requirements_file(snapshot['packages'])
+
+        return repo_list
 
     def _process_proxy(self, proxy_config):
         self._logger.info('Setting proxy environment variables')
@@ -277,6 +308,7 @@ class ImageBuilder(object):
         # if one is given
         self._logger.info('Cloning git repositories')
 
+        repo_list = []
         for name, vals in repositories.items():
             self._logger.info('Cloning repo %s' % vals['url'])
 
@@ -299,14 +331,20 @@ class ImageBuilder(object):
             GIT_SSL_NO_VERIFY = vals.get('GIT_SSL_NO_VERIFY', False)
 
             # Clone and checkout the repo
-            git_clone(vals['url'], target, vals.get('commit_id', None), True,
-                      credentials, ssh_key, GIT_SSL_NO_VERIFY)
+            git_info = git_clone(vals['url'], target,
+                                 vals.get('commit_id', None), True,
+                                 credentials, ssh_key, GIT_SSL_NO_VERIFY)
+
+            # Save repo info here since .git was deleted
+            repo_list.append(git_info)
 
             # clone repo's requirements-txt file
             if vals.get('requirements_file', False) is True:
                 if (target / REQUIREMENTS_FILE).exists():
                     self._register_requirements_file(target /
                                                      REQUIREMENTS_FILE)
+
+        return repo_list
 
     def _write_requirements_file(self, packages):
         # Generate python requirements file
