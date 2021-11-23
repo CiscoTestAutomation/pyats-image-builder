@@ -8,7 +8,7 @@ ENV TINI_VERSION={{ image.tini_version }}
 ENV WORKSPACE={{ image.workspace_dir }}
 
 RUN apt-get -o Acquire::Check-Valid-Until=false -o Acquire::Check-Date=false update \
-    && apt-get install -y --no-install-recommends iputils-ping telnet openssh-client curl build-essential net-tools \
+    && apt-get install -y --no-install-recommends iputils-ping telnet openssh-client curl build-essential net-tools git \
     && curl -fsSL https://github.com/krallin/tini/releases/download/v${TINI_VERSION}/tini-static-amd64 -o /bin/tini \
     && chmod +x /bin/tini \
     && pip3 install --upgrade --no-cache-dir setuptools pip virtualenv \
