@@ -409,6 +409,7 @@ def discover_manifests(search_path, ignore_folders=None, relative_path=None,
         except yaml.error.YAMLError as e:
             logger.error('Error loading manifest file {} from yaml\n{}'.format(
                 manifest, str(e)))
+            continue
 
         if relative_path:
             manifest_data['file'] = to_image_path(str(manifest),
