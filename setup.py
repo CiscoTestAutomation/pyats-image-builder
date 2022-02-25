@@ -5,7 +5,7 @@ from setuptools import setup, find_packages
 # launch setup
 setup(
     name = 'pyats-image-builder',
-    version = '22.1.1',
+    version = '22.2',
 
     # descriptions
     description = 'pyATS Docker image creation',
