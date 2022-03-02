@@ -1,12 +1,7 @@
 
 # Variables
-PKG_NAME      = pyats-image-builder
 BUILD_DIR     = $(shell pwd)/__build__
 DIST_DIR      = $(BUILD_DIR)/dist
-PROD_USER     = pyadm@pyats-ci
-PROD_PKGS     = /auto/pyats/packages
-STAGING_PKGS  = /auto/pyats/staging/packages
-STAGING_EXT_PKGS  = /auto/pyats/staging/packages_external
 
 # Development pkg requirements
 DEPENDENCIES  = pytest wheel PyYAML pip-tools requests gitpython docker
