@@ -1,5 +1,6 @@
 
 # Variables
+PKG_NAME      = pyats-image-builder
 BUILD_DIR     = $(shell pwd)/__build__
 DIST_DIR      = $(BUILD_DIR)/dist
 
