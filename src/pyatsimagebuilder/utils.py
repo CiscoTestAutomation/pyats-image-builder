@@ -411,6 +411,10 @@ def discover_manifests(search_path, ignore_folders=None, relative_path=None,
                 manifest, str(e)))
             continue
 
+        if manifest_data is None:
+            logger.warning(f'No manifest data from file {manifest}')
+            continue
+
         if relative_path:
             manifest_data['file'] = to_image_path(str(manifest),
                                                   search_path,
