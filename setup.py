@@ -36,16 +36,16 @@ def build_version_range(version):
 def version_info(*paths):
     '''returns the result of find_version() and build_version_range() tuple'''
 
-    version = '22.7',
+    version = find_version(*paths)
     return version, build_version_range(version)
 
 
-version = '22.7',
+version = find_version('src', 'pyatsimagebuilder', '__init__.py')
 
 # launch setup
 setup(
     name='pyats-image-builder',
-    version = '22.7',
+    version=version,
 
     # descriptions
     description='pyATS Docker image creation',
