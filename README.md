@@ -187,6 +187,12 @@ Your desired Python version. The pyATS Image Builder builds from a base image of
 
 > Make sure your specified version exists at https://hub.docker.com/_/python
 
+#### `platform`
+
+Desired platform to build image for. Platform must obey (https://docs.docker.com/build/building/multi-platform/#building-multi-platform-images).
+
+If an existing python-slim image exists on the host machine, this must be removed in order to use this option.
+
 #### `env`
 Environment variables to be defined in the image. These environment variables
 will persist in the built image - and visible in your pyATS job runs.

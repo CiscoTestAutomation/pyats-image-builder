@@ -82,6 +82,9 @@ class ImageBuilder(object):
             # Tag for docker image   argument (cli) > config (yaml) > None
             self.image.tag = tag or self.config.get('tag', None)
 
+            # Get Arch for image
+            self.image.platform = self.config.get('platform', None)
+
             # Start docker build
             if not dry_run:
                 self._logger.info('Building image')
@@ -418,6 +421,7 @@ class ImageBuilder(object):
         for line in api.build(path=str(self.context.path),
                               dockerfile=str(INSTALLATION / 'Dockerfile'),
                               tag=self.image.tag,
+                              platform=self.image.platform,
                               rm=True,
                               forcerm=True,
                               buildargs=self._docker_build_args,

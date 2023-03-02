@@ -35,6 +35,7 @@ class Image(object):
         # docker id and tag
         self.id = None
         self.tag = None
+        self.platform = None
 
         # environment variables
         self.env = env or {}
