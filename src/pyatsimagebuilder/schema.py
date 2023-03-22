@@ -31,6 +31,9 @@ BUILD_SCHEMA = {
                 }]
             }
         },
+        'platform': {
+            'type': 'string'
+        },
         'files': {
             'type': 'array',
             'items': {
