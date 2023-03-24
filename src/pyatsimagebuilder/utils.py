@@ -429,14 +429,17 @@ def discover_manifests(search_path, ignore_folders=None, relative_path=None,
                 break
 
         manifest_data['run_type'] = 'manifest'
-        manifest_data['job_type'] = manifest_data.pop('type')
+        manifest_data['job_type'] = manifest_data.pop('type', None)
+        if not manifest_data['job_type']:
+            logger.warning(f'No job type specified in {manifest}')
+            continue
 
         # Pop runtimes and profiles to add them back later as lists
         runtimes = manifest_data.pop('runtimes', {})
         profiles = manifest_data.pop('profiles', {})
 
         # Create default profile from top level arguments and system environment
-        default_arguments = manifest_data.pop('arguments')
+        default_arguments = manifest_data.pop('arguments', {})
         default_runtime = runtimes.get('system', {})
         default_environment = default_runtime.get('environment', {})
         profiles['DEFAULT'] = {}
