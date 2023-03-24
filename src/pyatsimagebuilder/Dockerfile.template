@@ -13,8 +13,13 @@ RUN apt-get -o Acquire::Check-Valid-Until=false -o Acquire::Check-Date=false upd
     && chmod +x /bin/tini \
     && pip3 install --upgrade --no-cache-dir setuptools pip virtualenv \
     && virtualenv ${WORKSPACE} \
-    && ${WORKSPACE}/bin/pip install --no-cache-dir psutil \
-    && apt-get remove -y curl build-essential \
+    && ${WORKSPACE}/bin/pip install --no-cache-dir psutil
+
+{% if image.linux_packages -%}
+RUN apt-get install -y --no-install-recommends {% for item in image.linux_packages -%}{{ item }}{% endfor %}
+{% endif %}
+
+RUN apt-get remove -y curl build-essential \
     && apt-get autoremove -y \
     && apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false \
     && apt-get clean \
