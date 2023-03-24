@@ -53,6 +53,8 @@ clean:
 
 develop:
 	@echo "--------------------------------------------------------------------"
+	@echo "Uninstalling package"
+	@pip uninstall -y pyats-image-builder
 	@echo "Installing development dependencies"
 	@pip install $(DEPENDENCIES)
 	@echo ""
