@@ -415,59 +415,65 @@ def discover_manifests(search_path, ignore_folders=None, relative_path=None,
             logger.warning(f'No manifest data from file {manifest}')
             continue
 
-        if relative_path:
-            manifest_data['file'] = to_image_path(str(manifest),
-                                                  search_path,
-                                                  relative_path)
-        else:
-            manifest_data['file'] = str(manifest)
+        try:
+            if relative_path:
+                manifest_data['file'] = to_image_path(str(manifest),
+                                                      search_path,
+                                                      relative_path)
+            else:
+                manifest_data['file'] = str(manifest)
 
-        # Find any repo containing this manifest file
-        for repo in repo_data:
-            if manifest_data['file'].startswith(repo):
-                manifest_data['repo_path'] = repo
-                break
+            # Find any repo containing this manifest file
+            for repo in repo_data:
+                if manifest_data['file'].startswith(repo):
+                    manifest_data['repo_path'] = repo
+                    break
 
-        manifest_data['run_type'] = 'manifest'
-        manifest_data['job_type'] = manifest_data.pop('type', None)
-        if not manifest_data['job_type']:
-            logger.warning(f'No job type specified in {manifest}')
+            manifest_data['run_type'] = 'manifest'
+            manifest_data['job_type'] = manifest_data.pop('type', None)
+            if not manifest_data['job_type']:
+                logger.warning(f'No job type specified in {manifest}')
+                continue
+
+            # Pop runtimes and profiles to add them back later as lists
+            runtimes = manifest_data.pop('runtimes', {})
+            profiles = manifest_data.pop('profiles', {})
+
+            # Create default profile from top level arguments and system environment
+            default_arguments = manifest_data.pop('arguments', {})
+            default_runtime = runtimes.get('system', {})
+            default_environment = default_runtime.get('environment', {})
+            profiles['DEFAULT'] = {}
+            profiles['DEFAULT']['runtime'] = 'system'
+            profiles['DEFAULT']['arguments'] = default_arguments
+            profiles['DEFAULT']['environment'] = default_environment
+
+            # Update profiles with environment from runtimes
+            for profile_name in profiles:
+                runtime = profiles[profile_name].get('runtime', 'system')
+                if runtime in runtimes:
+                    environment = runtimes[runtime].get('environment', {})
+                    if environment:
+                        profiles[profile_name]['environment'] = environment
+
+            # Convert profiles from hierarchical dict to list of dict
+            manifest_data['profiles'] = []
+            for profile_name in profiles:
+                manifest_data['profiles'].append(profiles[profile_name])
+                manifest_data['profiles'][-1]['name'] = profile_name
+
+            # Convert runtimes from hierarchical dict to list of dict
+            manifest_data['runtimes'] = []
+            for profile_name in runtimes:
+                manifest_data['runtimes'].append(runtimes[profile_name])
+                manifest_data['runtimes'][-1]['name'] = profile_name
+
+            jobs.append(manifest_data)
+
+        except Exception:
+            logger.error('Error processing manifest file {}\n{}'.format(
+                manifest, str(e)))
             continue
-
-        # Pop runtimes and profiles to add them back later as lists
-        runtimes = manifest_data.pop('runtimes', {})
-        profiles = manifest_data.pop('profiles', {})
-
-        # Create default profile from top level arguments and system environment
-        default_arguments = manifest_data.pop('arguments', {})
-        default_runtime = runtimes.get('system', {})
-        default_environment = default_runtime.get('environment', {})
-        profiles['DEFAULT'] = {}
-        profiles['DEFAULT']['runtime'] = 'system'
-        profiles['DEFAULT']['arguments'] = default_arguments
-        profiles['DEFAULT']['environment'] = default_environment
-
-        # Update profiles with environment from runtimes
-        for profile_name in profiles:
-            runtime = profiles[profile_name].get('runtime', 'system')
-            if runtime in runtimes:
-                environment = runtimes[runtime].get('environment', {})
-                if environment:
-                    profiles[profile_name]['environment'] = environment
-
-        # Convert profiles from hierarchical dict to list of dict
-        manifest_data['profiles'] = []
-        for profile_name in profiles:
-            manifest_data['profiles'].append(profiles[profile_name])
-            manifest_data['profiles'][-1]['name'] = profile_name
-
-        # Convert runtimes from hierarchical dict to list of dict
-        manifest_data['runtimes'] = []
-        for profile_name in runtimes:
-            manifest_data['runtimes'].append(runtimes[profile_name])
-            manifest_data['runtimes'][-1]['name'] = profile_name
-
-        jobs.append(manifest_data)
 
     logger.info('Number of discovered manifest files: %s' % \
                 len(discovered_manifests))
