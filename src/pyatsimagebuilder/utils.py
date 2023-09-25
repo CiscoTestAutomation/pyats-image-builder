@@ -470,7 +470,7 @@ def discover_manifests(search_path, ignore_folders=None, relative_path=None,
 
             jobs.append(manifest_data)
 
-        except Exception:
+        except Exception as e:
             logger.error('Error processing manifest file {}\n{}'.format(
                 manifest, str(e)))
             continue
