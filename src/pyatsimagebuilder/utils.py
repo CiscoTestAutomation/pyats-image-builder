@@ -283,11 +283,11 @@ def to_image_path(path, search_path, workspace_dir):
     workspace_dir = str(workspace_dir)
 
     if path.startswith('${WORKSPACE}'):
-        path = path.replace('${WORKSPACE}', workspace_dir)
+        path = path.replace('${WORKSPACE}', workspace_dir, 1)
     elif path.startswith('$WORKSPACE'):
-        path = path.replace('$WORKSPACE', workspace_dir)
+        path = path.replace('$WORKSPACE', workspace_dir, 1)
     elif path.startswith(search_path):
-        path = path.replace(search_path, workspace_dir)
+        path = path.replace(search_path, workspace_dir, 1)
 
     return path
 
@@ -471,14 +471,114 @@ def discover_manifests(search_path, ignore_folders=None, relative_path=None,
             jobs.append(manifest_data)
 
         except Exception as e:
-            logger.error('Error processing manifest file {}\n{}'.format(
-                manifest, str(e)))
+            logger.exception('Error processing manifest file {}'.format(
+                manifest))
             continue
 
     logger.info('Number of discovered manifest files: %s' % \
                 len(discovered_manifests))
 
+
+
     if jobs:
+        discover_yamls(jobs, search_path=search_path, relative_path=relative_path)
         return {'version': MANIFEST_VERSION, 'jobs': jobs}
     else:
         return {}
+
+
+def _process_testbed_file(profile, yaml_contents):
+    # Extract specific device information from each device
+    # in the testbed and attach to the profile
+    testbed_info = profile.setdefault('testbed_info', {})
+    for dev_name, dev in yaml_contents['devices'].items():
+        if isinstance(dev, dict):
+            testbed_info[dev_name] = {}
+            for key in ('os', 'platform', 'model', 'pid', 'type', 'logical'):
+                if key in dev:
+                    testbed_info[dev_name][key] = dev[key]
+
+def _process_clean_file(profile, yaml_contents):
+    # Extract bringup information from the clean file and
+    # attach to the profile
+    clean_info = profile.setdefault('clean_info', {})
+    bringup_module = yaml_contents.get('bringup', {}).get('BringUpWorker', {}).get('module')
+    clean_info['bringup_module'] = bringup_module
+
+
+yaml_processors = {
+    'testbed-file': _process_testbed_file,
+    'logical-testbed-file': _process_testbed_file,
+    'clean-file': _process_clean_file
+}
+
+def discover_yamls(manifests, search_path, relative_path=None):
+    """ Discover yaml files referenced in manifest files and extract key
+        information
+
+    Arguments:
+        manifests (list): list of contents of discovered manifests
+        search_path (Path): pathlib Path object with the directory to start discovery from
+        relative_path (str): String with the directory search results will be relative to
+    """
+    logger.info('Discovering YAML files from manifests')
+    for manifest in manifests:
+        manifest_dir = os.path.dirname(manifest['file'])
+        for profile in manifest['profiles']:
+            profile['yaml_files'] = []
+            if isinstance(profile.get('arguments'), dict):
+                for argument, value in profile['arguments'].items():
+                    if argument not in yaml_processors:
+                        # Filter for only testbed and clean files. No need to
+                        # load other yaml files
+                        continue
+
+                    if isinstance(value, str) and value.endswith('.yaml'):
+                        # Do not process any files that start with a variable
+                        # or some inaccessible absolute path. If the yaml file
+                        # starts with the relative path, it should be
+                        # accessible in the image, and still valid
+                        if value.startswith('$'):
+                            continue
+                        elif value.startswith('/'):
+                            if not relative_path or not value.startswith(relative_path):
+                                continue
+
+                        # Construct an absolute path using the dir of the manifest
+                        # This will be the relative path to the image root once
+                        # built, not the actual path of the file in the build
+                        # environment
+                        yaml_file = os.path.abspath(os.path.join(manifest_dir, value))
+                        # Convert to a real path so we can find the file in our
+                        # build environment
+                        if relative_path:
+                            yaml_file = to_image_path(yaml_file, relative_path, search_path)
+                        if os.path.isfile(yaml_file):
+                            try:
+                                with open(yaml_file) as f:
+                                    # load yaml contents with handling for an
+                                    # empty file
+                                    yaml_contents = yaml.safe_load(f.read()) or {}
+                            except Exception as e:
+                                msg = f'Error loading YAML file {value} from ' \
+                                      f'manifest {manifest["file"]}'
+                                logger.exception(msg)
+                                continue
+                        else:
+                            # YAML file relative path from manifest does not
+                            # exist.
+                            msg = f'Could not find YAML file {value} from ' \
+                                  f'manifest {manifest["file"]}'
+                            logger.warning(msg)
+
+                    processor = yaml_processors.get(argument)
+                    if processor:
+                        try:
+                            processor(profile, yaml_contents)
+                        except Exception as e:
+                            # Problem processing the specific type of YAML file
+                            msg = f'Error processing {argument} {value} from ' \
+                                  f'manifest {manifest["file"]}'
+                            logger.exception(msg)
+
+    return manifests
