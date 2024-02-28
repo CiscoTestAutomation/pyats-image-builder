@@ -490,21 +490,22 @@ def discover_manifests(search_path, ignore_folders=None, relative_path=None,
 def _process_testbed_file(profile, yaml_contents):
     # Extract specific device information from each device
     # in the testbed and attach to the profile
-    testbed_info = profile.setdefault('testbed_info', {})
-    for dev_name, dev in yaml_contents['devices'].items():
-        if isinstance(dev, dict):
-            testbed_info[dev_name] = {}
-            for key in ('os', 'platform', 'model', 'pid', 'type', 'logical'):
-                if key in dev:
-                    testbed_info[dev_name][key] = dev[key]
+    if yaml_contents.get('devices'):
+        testbed_info = profile.setdefault('testbed_info', {})
+        for dev_name, dev in yaml_contents['devices'].items():
+            if isinstance(dev, dict):
+                testbed_info[dev_name] = {}
+                for key in ('os', 'platform', 'model', 'pid', 'type', 'logical'):
+                    if key in dev:
+                        testbed_info[dev_name][key] = dev[key]
 
 def _process_clean_file(profile, yaml_contents):
     # Extract bringup information from the clean file and
     # attach to the profile
-    clean_info = profile.setdefault('clean_info', {})
     bringup_module = yaml_contents.get('bringup', {}).get('BringUpWorker', {}).get('module')
-    clean_info['bringup_module'] = bringup_module
-
+    if bringup_module:
+        clean_info = profile.setdefault('clean_info', {})
+        clean_info['bringup_module'] = bringup_module
 
 yaml_processors = {
     'testbed-file': _process_testbed_file,
