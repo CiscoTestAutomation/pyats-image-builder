@@ -527,59 +527,61 @@ def discover_yamls(manifests, search_path, relative_path=None):
         manifest_dir = os.path.dirname(manifest['file'])
         for profile in manifest['profiles']:
             profile['yaml_files'] = []
-            if isinstance(profile.get('arguments'), dict):
-                for argument, value in profile['arguments'].items():
-                    if argument not in yaml_processors:
-                        # Filter for only testbed and clean files. No need to
-                        # load other yaml files
+            if not isinstance(profile.get('arguments'), dict):
+                continue
+            for argument, value in profile['arguments'].items():
+                if argument not in yaml_processors:
+                    # Filter for only testbed and clean files. No need to
+                    # load other yaml files
+                    continue
+                if not (isinstance(value, str) and value.lower().endswith('.yaml')):
+                    continue
+
+                # Do not process any files that start with a variable
+                # or some inaccessible absolute path. If the yaml file
+                # starts with the relative path, it should be
+                # accessible in the image, and still valid
+                if value.startswith('$'):
+                    continue
+                elif value.startswith('/'):
+                    if not relative_path or not value.startswith(relative_path):
                         continue
 
-                    if isinstance(value, str) and value.endswith('.yaml'):
-                        # Do not process any files that start with a variable
-                        # or some inaccessible absolute path. If the yaml file
-                        # starts with the relative path, it should be
-                        # accessible in the image, and still valid
-                        if value.startswith('$'):
-                            continue
-                        elif value.startswith('/'):
-                            if not relative_path or not value.startswith(relative_path):
-                                continue
+                # Construct an absolute path using the dir of the manifest
+                # This will be the relative path to the image root once
+                # built, not the actual path of the file in the build
+                # environment
+                yaml_file = os.path.abspath(os.path.join(manifest_dir, value))
+                # Convert to a real path so we can find the file in our
+                # build environment
+                if relative_path:
+                    yaml_file = to_image_path(yaml_file, relative_path, search_path)
+                if os.path.isfile(yaml_file):
+                    try:
+                        with open(yaml_file) as f:
+                            # load yaml contents with handling for an
+                            # empty file
+                            yaml_contents = yaml.safe_load(f.read()) or {}
+                    except Exception as e:
+                        msg = f'Error loading YAML file {value} from ' \
+                                f'manifest {manifest["file"]}'
+                        logger.exception(msg)
+                        continue
+                else:
+                    # YAML file relative path from manifest does not
+                    # exist.
+                    msg = f'Could not find YAML file {value} from ' \
+                            f'manifest {manifest["file"]}'
+                    logger.warning(msg)
 
-                        # Construct an absolute path using the dir of the manifest
-                        # This will be the relative path to the image root once
-                        # built, not the actual path of the file in the build
-                        # environment
-                        yaml_file = os.path.abspath(os.path.join(manifest_dir, value))
-                        # Convert to a real path so we can find the file in our
-                        # build environment
-                        if relative_path:
-                            yaml_file = to_image_path(yaml_file, relative_path, search_path)
-                        if os.path.isfile(yaml_file):
-                            try:
-                                with open(yaml_file) as f:
-                                    # load yaml contents with handling for an
-                                    # empty file
-                                    yaml_contents = yaml.safe_load(f.read()) or {}
-                            except Exception as e:
-                                msg = f'Error loading YAML file {value} from ' \
-                                      f'manifest {manifest["file"]}'
-                                logger.exception(msg)
-                                continue
-                        else:
-                            # YAML file relative path from manifest does not
-                            # exist.
-                            msg = f'Could not find YAML file {value} from ' \
-                                  f'manifest {manifest["file"]}'
-                            logger.warning(msg)
-
-                    processor = yaml_processors.get(argument)
-                    if processor:
-                        try:
-                            processor(profile, yaml_contents)
-                        except Exception as e:
-                            # Problem processing the specific type of YAML file
-                            msg = f'Error processing {argument} {value} from ' \
-                                  f'manifest {manifest["file"]}'
-                            logger.exception(msg)
+                processor = yaml_processors.get(argument)
+                if processor:
+                    try:
+                        processor(profile, yaml_contents)
+                    except Exception as e:
+                        # Problem processing the specific type of YAML file
+                        msg = f'Error processing {argument} {value} from ' \
+                                f'manifest {manifest["file"]}'
+                        logger.exception(msg)
 
     return manifests
