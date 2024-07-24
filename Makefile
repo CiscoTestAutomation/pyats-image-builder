@@ -26,7 +26,7 @@ install:
 	@echo "Installing dependencies"
 	@pip install $(DEPENDENCIES)
 	@echo "Installing package"
-	@python setup.py install
+	@python3 setup.py install
 	@echo ""
 	@echo "Done."
 	@echo ""
@@ -35,7 +35,7 @@ package:
 	@echo "--------------------------------------------------------------------"
 	@echo "Building package"
 	@mkdir -p $(DIST_DIR)/
-	@python setup.py bdist_wheel --dist-dir=$(DIST_DIR)
+	@python3 setup.py bdist_wheel --dist-dir=$(DIST_DIR)
 	@echo ""
 	@echo "Done."
 	@echo ""
@@ -43,7 +43,7 @@ package:
 clean:
 	@echo ""
 	@echo "--------------------------------------------------------------------"
-	@python setup.py clean
+	@python3 setup.py clean
 	@echo "Removing *.pyc and __pycache__/ files"
 	@find . -type f -name "*.pyc" | xargs rm -vrf
 	@find . -type d -name "__pycache__" | xargs rm -vrf
@@ -60,7 +60,7 @@ develop:
 	@echo ""
 	@echo "--------------------------------------------------------------------"
 	@echo "Setting up development environment"
-	@python setup.py develop --no-deps -q
+	@python3 setup.py develop --no-deps -q
 	@echo ""
 	@echo "Done."
 	@echo ""
@@ -69,7 +69,7 @@ undevelop:
 	@echo ""
 	@echo "--------------------------------------------------------------------"
 	@echo "Removing development environment"
-	@python setup.py develop -q --no-deps --uninstall
+	@python3 setup.py develop -q --no-deps --uninstall
 	@echo ""
 	@echo "Done."
 	@echo ""
