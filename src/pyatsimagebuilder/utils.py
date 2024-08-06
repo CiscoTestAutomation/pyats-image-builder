@@ -347,62 +347,9 @@ def discover_jobs(jobfiles,
     return job_paths
 
 
-def discover_manifests(search_path, ignore_folders=None, relative_path=None,
-                       repo_data=None):
-    """ Discover manifest files and write manifest.json file
-
-    Arguments:
-        search_path (Path): pathlib Path object with the directory to start discovery from
-        ignore_folders (list): list of strings with directories being excluded from searching
-        relative_path (str): String with the directory search results will be relative to
-        repo_list (dict): dict of repositories to link to each manifest file.
-                          Additional repos are discovered and appended to
-                          this list.
-    """
-    logger.info('Discovering Manifests')
-
-    if not ignore_folders:
-        ignore_folders = []
-
-    # Combine search for manifests and git repos in one recursive glob search
-    discovered_manifests = search_regex([MANIFEST_REGEX, GIT_REGEX],
-                                        search_path,
-                                        ignore_folders=ignore_folders)
-
-    # Separate git repos and manifests
-    git_regex = re.compile(GIT_REGEX)
-    discovered_repos = []
-    i = 0
-    while i < len(discovered_manifests):
-        if git_regex.match(str(discovered_manifests[i])):
-            discovered_repos.append(discovered_manifests.pop(i))
-        else:
-            i += 1
-
-    if repo_data is None:
-        repo_data = {}
-
-    for repo in discovered_repos:
-        # remove /.git from path and convert from Path to str
-        repo = os.path.dirname(str(repo))
-        if relative_path:
-            image_repo = to_image_path(repo, search_path, relative_path)
-        else:
-            image_repo = repo
-        # only add undiscovered repos
-        if image_repo not in repo_data:
-            try:
-                r = git_info(repo)
-                # use corrected image path
-                r['path'] = image_repo
-                repo_data[image_repo] = r
-            except Exception:
-                # problem getting git information - probably not an actual repo
-                logger.exception('Error getting git info about {}'.format(repo))
-
-    # Generate single manifest structure linking the files to the data
+def parse_manifests(manifests, search_path, relative_path=None, repo_data=None):
     jobs = []
-    for manifest in discovered_manifests:
+    for manifest in manifests:
         try:
             with open(manifest) as f:
                 manifest_data = yaml.safe_load(f.read())
@@ -475,10 +422,70 @@ def discover_manifests(search_path, ignore_folders=None, relative_path=None,
                 manifest))
             continue
 
+    return jobs
+
+
+def discover_manifests(search_path, ignore_folders=None, relative_path=None,
+                       repo_data=None):
+    """ Discover manifest files and write manifest.json file
+
+    Arguments:
+        search_path (Path): pathlib Path object with the directory to start discovery from
+        ignore_folders (list): list of strings with directories being excluded from searching
+        relative_path (str): String with the directory search results will be relative to
+        repo_list (dict): dict of repositories to link to each manifest file.
+                          Additional repos are discovered and appended to
+                          this list.
+    """
+    logger.info('Discovering Manifests')
+
+    if not ignore_folders:
+        ignore_folders = []
+
+    # Combine search for manifests and git repos in one recursive glob search
+    discovered_manifests = search_regex([MANIFEST_REGEX, GIT_REGEX],
+                                        search_path,
+                                        ignore_folders=ignore_folders)
+
+    # Separate git repos and manifests
+    git_regex = re.compile(GIT_REGEX)
+    discovered_repos = []
+    i = 0
+    while i < len(discovered_manifests):
+        if git_regex.match(str(discovered_manifests[i])):
+            discovered_repos.append(discovered_manifests.pop(i))
+        else:
+            i += 1
+
+    if repo_data is None:
+        repo_data = {}
+
+    for repo in discovered_repos:
+        # remove /.git from path and convert from Path to str
+        repo = os.path.dirname(str(repo))
+        if relative_path:
+            image_repo = to_image_path(repo, search_path, relative_path)
+        else:
+            image_repo = repo
+        # only add undiscovered repos
+        if image_repo not in repo_data:
+            try:
+                r = git_info(repo)
+                # use corrected image path
+                r['path'] = image_repo
+                repo_data[image_repo] = r
+            except Exception:
+                # problem getting git information - probably not an actual repo
+                logger.exception('Error getting git info about {}'.format(repo))
+
+    # Generate single manifest structure linking the files to the data
+    jobs = parse_manifests(discovered_manifests,
+                           search_path=search_path,
+                           relative_path=relative_path,
+                           repo_data=repo_data)
+
     logger.info('Number of discovered manifest files: %s' % \
                 len(discovered_manifests))
-
-
 
     if jobs:
         discover_yamls(jobs, search_path=search_path, relative_path=relative_path)
@@ -556,6 +563,12 @@ def discover_yamls(manifests, search_path, relative_path=None):
                 # build environment
                 if relative_path:
                     yaml_file = to_image_path(yaml_file, relative_path, search_path)
+
+                # Append to yaml_files list for this manifest - it doesn't
+                # matter if it exists at this point, just that the manifest is
+                # referencing it.
+                profile['yaml_files'].append(yaml_file)
+
                 if os.path.isfile(yaml_file):
                     try:
                         with open(yaml_file) as f:
