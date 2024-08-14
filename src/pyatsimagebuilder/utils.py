@@ -348,6 +348,8 @@ def discover_jobs(jobfiles,
 
 
 def parse_manifests(manifests, search_path, relative_path=None, repo_data=None):
+    if repo_data is None:
+        repo_data = {}
     jobs = []
     for manifest in manifests:
         try:
