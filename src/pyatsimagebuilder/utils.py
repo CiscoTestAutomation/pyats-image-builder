@@ -508,8 +508,8 @@ def _process_testbed_file(profile, yaml_contents):
                     if dev.get(key):
                         testbed_info[dev_name][key] = dev[key]
                 if dev.get('connections', {}).get('a'):
-                    port = dev[key]['a'].get('port')
-                    ip = dev[key]['a'].get('ip')
+                    port = dev['connections']['a'].get('port')
+                    ip = dev['connections']['a'].get('ip')
                     if ip and port:
                         testbed_info[dev_name]['console'] = f'{ip}:{port}'
 
