@@ -505,8 +505,13 @@ def _process_testbed_file(profile, yaml_contents):
             if isinstance(dev, dict):
                 testbed_info[dev_name] = {}
                 for key in ('os', 'platform', 'model', 'pid', 'type', 'logical'):
-                    if key in dev:
+                    if dev.get(key):
                         testbed_info[dev_name][key] = dev[key]
+                if dev.get('connections', {}).get('a'):
+                    port = dev[key]['a'].get('port')
+                    ip = dev[key]['a'].get('ip')
+                    if ip and port:
+                        testbed_info[dev_name]['console'] = f'{ip}:{port}'
 
 def _process_clean_file(profile, yaml_contents):
     # Extract bringup information from the clean file and
@@ -581,6 +586,7 @@ def discover_yamls(manifests, search_path, relative_path=None):
                         msg = f'Error loading YAML file {value} from ' \
                                 f'manifest {manifest["file"]}'
                         logger.exception(msg)
+                        yaml_contents = None
                         continue
                 else:
                     # YAML file relative path from manifest does not
@@ -590,7 +596,7 @@ def discover_yamls(manifests, search_path, relative_path=None):
                     logger.warning(msg)
 
                 processor = yaml_processors.get(argument)
-                if processor:
+                if processor and yaml_contents:
                     try:
                         processor(profile, yaml_contents)
                     except Exception as e:
