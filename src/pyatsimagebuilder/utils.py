@@ -12,6 +12,8 @@ import json
 import yaml
 import sys
 
+from concurrent.futures import ThreadPoolExecutor
+
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 logger.addHandler(logging.StreamHandler(sys.stdout))
@@ -347,82 +349,87 @@ def discover_jobs(jobfiles,
     return job_paths
 
 
+def parse_manifest(manifest_file, jobs, search_path, relative_path=None, repo_data=None):
+    try:
+        with open(manifest_file) as f:
+            manifest_data = yaml.safe_load(f.read())
+    except yaml.error.YAMLError as e:
+        logger.error('Error loading manifest file {} from yaml\n{}'.format(
+            manifest_file, str(e)))
+        return
+
+    if manifest_data is None:
+        logger.warning(f'No manifest data from file {manifest_file}')
+        return
+
+    try:
+        if relative_path:
+            manifest_data['file'] = to_image_path(str(manifest_file),
+                                                    search_path,
+                                                    relative_path)
+        else:
+            manifest_data['file'] = str(manifest_file)
+
+        # Find any repo containing this manifest file
+        for repo in repo_data:
+            if manifest_data['file'].startswith(repo):
+                manifest_data['repo_path'] = repo
+                break
+
+        manifest_data['run_type'] = 'manifest'
+        manifest_data['job_type'] = manifest_data.pop('type', None)
+        if not manifest_data['job_type']:
+            logger.warning(f'No job type specified in {manifest_file}')
+            return
+
+        # Pop runtimes and profiles to add them back later as lists
+        runtimes = manifest_data.pop('runtimes', {})
+        profiles = manifest_data.pop('profiles', {})
+
+        # Create default profile from top level arguments and system environment
+        default_arguments = manifest_data.pop('arguments', {})
+        default_runtime = runtimes.get('system', {})
+        default_environment = default_runtime.get('environment', {})
+        profiles['DEFAULT'] = {}
+        profiles['DEFAULT']['runtime'] = 'system'
+        profiles['DEFAULT']['arguments'] = default_arguments
+        profiles['DEFAULT']['environment'] = default_environment
+
+        # Update profiles with environment from runtimes
+        for profile_name in profiles:
+            runtime = profiles[profile_name].get('runtime', 'system')
+            if runtime in runtimes:
+                environment = runtimes[runtime].get('environment', {})
+                if environment:
+                    profiles[profile_name]['environment'] = environment
+
+        # Convert profiles from hierarchical dict to list of dict
+        manifest_data['profiles'] = []
+        for profile_name in profiles:
+            manifest_data['profiles'].append(profiles[profile_name])
+            manifest_data['profiles'][-1]['name'] = profile_name
+
+        # Convert runtimes from hierarchical dict to list of dict
+        manifest_data['runtimes'] = []
+        for profile_name in runtimes:
+            manifest_data['runtimes'].append(runtimes[profile_name])
+            manifest_data['runtimes'][-1]['name'] = profile_name
+
+        jobs.append(manifest_data)
+
+    except Exception as e:
+        logger.exception('Error processing manifest file {}'.format(
+            manifest_file))
+
+
 def parse_manifests(manifests, search_path, relative_path=None, repo_data=None):
     if repo_data is None:
         repo_data = {}
     jobs = []
-    for manifest in manifests:
-        try:
-            with open(manifest) as f:
-                manifest_data = yaml.safe_load(f.read())
-        except yaml.error.YAMLError as e:
-            logger.error('Error loading manifest file {} from yaml\n{}'.format(
-                manifest, str(e)))
-            continue
 
-        if manifest_data is None:
-            logger.warning(f'No manifest data from file {manifest}')
-            continue
-
-        try:
-            if relative_path:
-                manifest_data['file'] = to_image_path(str(manifest),
-                                                      search_path,
-                                                      relative_path)
-            else:
-                manifest_data['file'] = str(manifest)
-
-            # Find any repo containing this manifest file
-            for repo in repo_data:
-                if manifest_data['file'].startswith(repo):
-                    manifest_data['repo_path'] = repo
-                    break
-
-            manifest_data['run_type'] = 'manifest'
-            manifest_data['job_type'] = manifest_data.pop('type', None)
-            if not manifest_data['job_type']:
-                logger.warning(f'No job type specified in {manifest}')
-                continue
-
-            # Pop runtimes and profiles to add them back later as lists
-            runtimes = manifest_data.pop('runtimes', {})
-            profiles = manifest_data.pop('profiles', {})
-
-            # Create default profile from top level arguments and system environment
-            default_arguments = manifest_data.pop('arguments', {})
-            default_runtime = runtimes.get('system', {})
-            default_environment = default_runtime.get('environment', {})
-            profiles['DEFAULT'] = {}
-            profiles['DEFAULT']['runtime'] = 'system'
-            profiles['DEFAULT']['arguments'] = default_arguments
-            profiles['DEFAULT']['environment'] = default_environment
-
-            # Update profiles with environment from runtimes
-            for profile_name in profiles:
-                runtime = profiles[profile_name].get('runtime', 'system')
-                if runtime in runtimes:
-                    environment = runtimes[runtime].get('environment', {})
-                    if environment:
-                        profiles[profile_name]['environment'] = environment
-
-            # Convert profiles from hierarchical dict to list of dict
-            manifest_data['profiles'] = []
-            for profile_name in profiles:
-                manifest_data['profiles'].append(profiles[profile_name])
-                manifest_data['profiles'][-1]['name'] = profile_name
-
-            # Convert runtimes from hierarchical dict to list of dict
-            manifest_data['runtimes'] = []
-            for profile_name in runtimes:
-                manifest_data['runtimes'].append(runtimes[profile_name])
-                manifest_data['runtimes'][-1]['name'] = profile_name
-
-            jobs.append(manifest_data)
-
-        except Exception as e:
-            logger.exception('Error processing manifest file {}'.format(
-                manifest))
-            continue
+    with ThreadPoolExecutor(max_workers=50) as executor:
+        for manifest in manifests:
+            executor.submit(parse_manifest, manifest, jobs, search_path, relative_path, repo_data)
 
     return jobs
 
@@ -527,6 +534,84 @@ yaml_processors = {
     'clean-file': _process_clean_file
 }
 
+def discover_yamls_from_manifest(manifest, search_path, relative_path=None):
+    """ Discover yaml files referenced in manifest file and extract key
+        information
+
+    Arguments:
+        manifest (dict): manifest object
+        search_path (Path): pathlib Path object with the directory to start discovery from
+        relative_path (str): String with the directory search results will be relative to
+    """
+    manifest_dir = os.path.dirname(manifest['file'])
+    for profile in manifest['profiles']:
+        profile['yaml_files'] = []
+        if not isinstance(profile.get('arguments'), dict):
+            continue
+        for argument, value in profile['arguments'].items():
+            if argument not in yaml_processors:
+                # Filter for only testbed and clean files. No need to
+                # load other yaml files
+                continue
+            if not (isinstance(value, str) and value.lower().endswith('.yaml')):
+                continue
+
+            # Do not process any files that start with a variable
+            # or some inaccessible absolute path. If the yaml file
+            # starts with the relative path, it should be
+            # accessible in the image, and still valid
+            if value.startswith('$'):
+                continue
+            elif value.startswith('/'):
+                if not relative_path or not value.startswith(relative_path):
+                    continue
+
+            # Construct an absolute path using the dir of the manifest
+            # This will be the relative path to the image root once
+            # built, not the actual path of the file in the build
+            # environment
+            yaml_file = os.path.abspath(os.path.join(manifest_dir, value))
+            # Convert to a real path so we can find the file in our
+            # build environment
+            if relative_path:
+                yaml_file = to_image_path(yaml_file, relative_path, search_path)
+
+            # Append to yaml_files list for this manifest - it doesn't
+            # matter if it exists at this point, just that the manifest is
+            # referencing it.
+            profile['yaml_files'].append(yaml_file)
+
+            if os.path.isfile(yaml_file):
+                try:
+                    with open(yaml_file) as f:
+                        # load yaml contents with handling for an
+                        # empty file
+                        yaml_contents = yaml.safe_load(f.read()) or {}
+                except Exception as e:
+                    msg = f'Error loading YAML file {value} from ' \
+                            f'manifest {manifest["file"]}'
+                    logger.exception(msg)
+                    yaml_contents = None
+                    continue
+            else:
+                # YAML file relative path from manifest does not
+                # exist.
+                msg = f'Could not find YAML file {value} from ' \
+                        f'manifest {manifest["file"]}'
+                logger.warning(msg)
+                continue
+
+            processor = yaml_processors.get(argument)
+            if processor and yaml_contents:
+                try:
+                    processor(profile, yaml_contents)
+                except Exception as e:
+                    # Problem processing the specific type of YAML file
+                    msg = f'Error processing {argument} {value} from ' \
+                            f'manifest {manifest["file"]}'
+                    logger.exception(msg)
+
+
 def discover_yamls(manifests, search_path, relative_path=None):
     """ Discover yaml files referenced in manifest files and extract key
         information
@@ -537,72 +622,11 @@ def discover_yamls(manifests, search_path, relative_path=None):
         relative_path (str): String with the directory search results will be relative to
     """
     logger.info('Discovering YAML files from manifests')
-    for manifest in manifests:
-        manifest_dir = os.path.dirname(manifest['file'])
-        for profile in manifest['profiles']:
-            profile['yaml_files'] = []
-            if not isinstance(profile.get('arguments'), dict):
-                continue
-            for argument, value in profile['arguments'].items():
-                if argument not in yaml_processors:
-                    # Filter for only testbed and clean files. No need to
-                    # load other yaml files
-                    continue
-                if not (isinstance(value, str) and value.lower().endswith('.yaml')):
-                    continue
-
-                # Do not process any files that start with a variable
-                # or some inaccessible absolute path. If the yaml file
-                # starts with the relative path, it should be
-                # accessible in the image, and still valid
-                if value.startswith('$'):
-                    continue
-                elif value.startswith('/'):
-                    if not relative_path or not value.startswith(relative_path):
-                        continue
-
-                # Construct an absolute path using the dir of the manifest
-                # This will be the relative path to the image root once
-                # built, not the actual path of the file in the build
-                # environment
-                yaml_file = os.path.abspath(os.path.join(manifest_dir, value))
-                # Convert to a real path so we can find the file in our
-                # build environment
-                if relative_path:
-                    yaml_file = to_image_path(yaml_file, relative_path, search_path)
-
-                # Append to yaml_files list for this manifest - it doesn't
-                # matter if it exists at this point, just that the manifest is
-                # referencing it.
-                profile['yaml_files'].append(yaml_file)
-
-                if os.path.isfile(yaml_file):
-                    try:
-                        with open(yaml_file) as f:
-                            # load yaml contents with handling for an
-                            # empty file
-                            yaml_contents = yaml.safe_load(f.read()) or {}
-                    except Exception as e:
-                        msg = f'Error loading YAML file {value} from ' \
-                                f'manifest {manifest["file"]}'
-                        logger.exception(msg)
-                        yaml_contents = None
-                        continue
-                else:
-                    # YAML file relative path from manifest does not
-                    # exist.
-                    msg = f'Could not find YAML file {value} from ' \
-                            f'manifest {manifest["file"]}'
-                    logger.warning(msg)
-
-                processor = yaml_processors.get(argument)
-                if processor and yaml_contents:
-                    try:
-                        processor(profile, yaml_contents)
-                    except Exception as e:
-                        # Problem processing the specific type of YAML file
-                        msg = f'Error processing {argument} {value} from ' \
-                                f'manifest {manifest["file"]}'
-                        logger.exception(msg)
+    with ThreadPoolExecutor(max_workers=50) as executor:
+        for manifest in manifests:
+            executor.submit(discover_yamls_from_manifest,
+                            manifest,
+                            search_path,
+                            relative_path)
 
     return manifests
