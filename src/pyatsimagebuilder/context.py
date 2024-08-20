@@ -19,12 +19,12 @@ class Context(object):
         self.path = None
         self.keep = keep
 
-    def mkdir(self, name):
+    def mkdir(self, name, exist_ok=False):
         '''
         create a folder in this build context
         '''
         folder = self.path / name
-        folder.mkdir()
+        folder.mkdir(parents=True, exist_ok=exist_ok)
         return folder.relative_to(self.path)
 
     def write_file(self, file, content):
