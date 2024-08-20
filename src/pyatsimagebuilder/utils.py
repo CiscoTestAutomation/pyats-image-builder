@@ -427,7 +427,7 @@ def parse_manifests(manifests, search_path, relative_path=None, repo_data=None):
         repo_data = {}
     jobs = []
 
-    with ThreadPoolExecutor(max_workers=50) as executor:
+    with ThreadPoolExecutor(max_workers=15) as executor:
         for manifest in manifests:
             executor.submit(parse_manifest, manifest, jobs, search_path, relative_path, repo_data)
 
@@ -622,7 +622,7 @@ def discover_yamls(manifests, search_path, relative_path=None):
         relative_path (str): String with the directory search results will be relative to
     """
     logger.info('Discovering YAML files from manifests')
-    with ThreadPoolExecutor(max_workers=50) as executor:
+    with ThreadPoolExecutor(max_workers=15) as executor:
         for manifest in manifests:
             executor.submit(discover_yamls_from_manifest,
                             manifest,
