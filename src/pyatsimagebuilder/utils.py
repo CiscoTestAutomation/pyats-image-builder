@@ -545,7 +545,6 @@ def discover_yamls_from_manifest(manifest, search_path, relative_path=None):
     """
     manifest_dir = os.path.dirname(manifest['file'])
     for profile in manifest['profiles']:
-        profile['yaml_files'] = []
         if not isinstance(profile.get('arguments'), dict):
             continue
         for argument, value in profile['arguments'].items():
@@ -575,11 +574,6 @@ def discover_yamls_from_manifest(manifest, search_path, relative_path=None):
             # build environment
             if relative_path:
                 yaml_file = to_image_path(yaml_file, relative_path, search_path)
-
-            # Append to yaml_files list for this manifest - it doesn't
-            # matter if it exists at this point, just that the manifest is
-            # referencing it.
-            profile['yaml_files'].append(yaml_file)
 
             if os.path.isfile(yaml_file):
                 try:
