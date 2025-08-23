@@ -65,6 +65,12 @@ BUILD_SCHEMA = {
                 'type': 'string'
             }
         },
+        'linux_packages': {
+            'type': 'array',
+            'items': {
+                'type': 'string'
+            }
+        },
         # pip-config takes either a dict to give to configparser, or an already
         # formatted config string
         'pip-config': {
