@@ -412,15 +412,16 @@ def parse_manifest(manifest_file, jobs, search_path, relative_path=None, repo_da
             if default_tags:
                 if isinstance(default_tags, list):
                     combined_tags.extend(default_tags)
-                elif isinstance(default_tags, str) and default_tags.strip():
-                    combined_tags.extend(default_tags.split())
-            
+                else:
+                    combined_tags = combined_tags + default_tags
+
             # Add profile tags if they exist
             if profile_tags:
                 if isinstance(profile_tags, list):
                     combined_tags.extend(profile_tags)
-                elif isinstance(profile_tags, str) and profile_tags.strip():
-                    combined_tags.extend(profile_tags.split())
+                else:
+                    combined_tags = combined_tags + profile_tags
+                
             
             profiles[profile_name]['tags'] = combined_tags
         # Convert profiles from hierarchical dict to list of dict
