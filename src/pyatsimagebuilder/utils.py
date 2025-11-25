@@ -421,9 +421,9 @@ def parse_manifest(manifest_file, jobs, search_path, relative_path=None, repo_da
                     combined_tags.extend(profile_tags)
                 else:
                     combined_tags = combined_tags + profile_tags
-                
-            
-            profiles[profile_name]['tags'] = combined_tags
+
+            if combined_tags:
+                profiles[profile_name]['tags'] = combined_tags
         # Convert profiles from hierarchical dict to list of dict
         manifest_data['profiles'] = []
         for profile_name in profiles:
