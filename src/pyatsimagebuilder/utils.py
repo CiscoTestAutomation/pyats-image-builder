@@ -386,7 +386,7 @@ def parse_manifest(manifest_file, jobs, search_path, relative_path=None, repo_da
         runtimes = manifest_data.pop('runtimes', {})
         profiles = manifest_data.pop('profiles', {})
         #Get top level tags
-        default_tags = manifest_data.get('tags', '')
+        default_tags = manifest_data.get('tags', [])
         # Create default profile from top level arguments and system environment
         default_arguments = manifest_data.pop('arguments', {})
         default_runtime = runtimes.get('system', {})
@@ -405,9 +405,24 @@ def parse_manifest(manifest_file, jobs, search_path, relative_path=None, repo_da
                 if environment:
                     profiles[profile_name]['environment'] = environment
             #Add tags from top level to each profile
-            profile_tags = profiles[profile_name].get('tags', '')
+            profile_tags = profiles[profile_name].get('tags', [])
+            combined_tags = []
+            
+            # Add default tags if they exist
             if default_tags:
-                profiles[profile_name]['tags'] =  default_tags + ' ' + profile_tags
+                if isinstance(default_tags, list):
+                    combined_tags.extend(default_tags)
+                elif isinstance(default_tags, str) and default_tags.strip():
+                    combined_tags.extend(default_tags.split())
+            
+            # Add profile tags if they exist
+            if profile_tags:
+                if isinstance(profile_tags, list):
+                    combined_tags.extend(profile_tags)
+                elif isinstance(profile_tags, str) and profile_tags.strip():
+                    combined_tags.extend(profile_tags.split())
+            
+            profiles[profile_name]['tags'] = combined_tags
         # Convert profiles from hierarchical dict to list of dict
         manifest_data['profiles'] = []
         for profile_name in profiles:
