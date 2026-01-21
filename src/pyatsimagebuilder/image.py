@@ -1,7 +1,10 @@
 import os
 import docker
+import logging
 
 from jinja2 import Environment, FileSystemLoader
+
+logger = logging.getLogger(__name__)
 
 JINJA2_ENV = Environment(loader=FileSystemLoader(os.path.dirname(__file__)),
                          trim_blocks=True,
@@ -10,6 +13,7 @@ DEFAULT_BASE_IMAGE = 'python'
 DEFAULT_BASE_IMAGE_LABEL = '3.7.9-slim'
 DEFAULT_TINI_VERSION = '0.18.0'
 DEFAULT_WORKSPACE_NAME = 'pyats'
+DEFAULT_LINUX_PACKAGES = []
 
 DOCKERIMAGE_TEMPLATE = 'Dockerfile.template'
 
@@ -23,7 +27,8 @@ class Image(object):
                  base_image=DEFAULT_BASE_IMAGE,
                  base_image_label=DEFAULT_BASE_IMAGE_LABEL,
                  tini_version=DEFAULT_TINI_VERSION,
-                 workspace_name=DEFAULT_WORKSPACE_NAME):
+                 workspace_name=DEFAULT_WORKSPACE_NAME,
+                 linux_packages=DEFAULT_LINUX_PACKAGES):
 
         self._template = JINJA2_ENV.get_template(DOCKERIMAGE_TEMPLATE)
 
@@ -40,13 +45,17 @@ class Image(object):
         # environment variables
         self.env = env or {}
 
+        self.linux_packages = linux_packages
+
         # commands to run before/after pip installation
         self.pre_pip_cmds = pre_pip_cmds
         self.post_pip_cmds = post_pip_cmds
 
 
     def manifest(self):
-        return self._template.render(image=self)
+        output =  self._template.render(image=self)
+        logger.debug(f'Dockerfile:\n{output}')
+        return output
 
     def push(self, remote_tag=None, credentials=None):
         """
