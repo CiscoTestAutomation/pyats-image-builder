@@ -2,5 +2,5 @@ from .image import Image
 from .builder import ImageBuilder
 
 # metadata
-__version__ = "26.1"
+__version__ = "26.2"
 __author__ = 'Cisco Systems Inc.'
