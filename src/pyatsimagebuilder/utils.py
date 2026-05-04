@@ -540,6 +540,9 @@ def _process_testbed_file(profile, yaml_contents):
                     ip = dev['connections']['a'].get('ip')
                     if ip and port:
                         testbed_info[dev_name]['console'] = f'{ip}:{port}'
+                if dev.get("device_id"):
+                    testbed_info[dev_name]['device_id'] = dev['device_id']
+ 
 
 def _process_clean_file(profile, yaml_contents):
     # Extract bringup information from the clean file and
