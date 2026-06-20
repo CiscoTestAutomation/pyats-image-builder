@@ -27,6 +27,8 @@ ENV_PATTERN = re.compile(r'(%ENV{ *([0-9a-zA-Z\_]+) *})')
 IMAGE_BUILD_SUCCESSUL = \
     re.compile(r' *Successfully built (?P<image_id>[a-z0-9]{12}) *$')
 
+logger = logging.getLogger(__name__)
+
 
 class ImageBuilder(object):
     def __init__(self, config, logger=logging.getLogger(__name__)):
@@ -72,18 +74,21 @@ class ImageBuilder(object):
         self.context = Context(keep=keep_context, logger=self._logger)
 
         with self.context:
+            logger.debug(f'builder config {self.config}')
 
             # create our installation directory
             self.context.mkdir(INSTALLATION)
             self.context.mkdir(INSTALLATION / REQUIREMENTS)
-
-            self._populate_context()
 
             # Tag for docker image   argument (cli) > config (yaml) > None
             self.image.tag = tag or self.config.get('tag', None)
 
             # Get Arch for image
             self.image.platform = self.config.get('platform', None)
+
+            self.image.linux_packages = self.config.get('linux_packages', [])
+
+            self._populate_context()
 
             # Start docker build
             if not dry_run:
@@ -409,7 +414,7 @@ class ImageBuilder(object):
     def _build_image(self, no_cache=False):
 
         # copy entrypoint to the context
-        self._logger.info('Copying entrypoint to context')
+        self._logger.debug('Copying entrypoint to context')
         self.context.copy(HERE / 'docker-entrypoint.sh',
                           INSTALLATION / 'entrypoint.sh')
 
